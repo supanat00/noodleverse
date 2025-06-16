@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, Suspense, useState } from "react";
+import React, { useRef, useEffect, Suspense, useState, useMemo } from "react";
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useGLTF, Preload } from '@react-three/drei';
@@ -10,12 +10,28 @@ import './ARSuperDebug.css';
 // ====================================================================
 // Component 3D สำหรับโมเดล (เวอร์ชันใช้ Raycaster เพื่อความแม่นยำ)
 // ====================================================================
-function FaceAnchor({ landmarksRef, modelSrc }) {
+function FaceAnchor({ landmarksRef, modelSrc, stickSrc, animSrc }) {
     const groupRef = useRef();
-    const { scene: model } = useGLTF(modelSrc);
     const { camera } = useThree();
 
-    useFrame((state) => {
+    // --- 1. โหลดโมเดลทั้งหมด ---
+    const { scene: baseModel } = useGLTF(modelSrc);
+    const { scene: stickModel } = useGLTF(stickSrc);
+    // useGLTF จะคืนค่า scene และ animations มาให้
+    const { scene: animModel, animations: animClips } = useGLTF(animSrc);
+
+    // --- 2. ตั้งค่า Animation Mixer ---
+    const mixer = useMemo(() => new THREE.AnimationMixer(animModel), [animModel]);
+    const actions = useMemo(() => {
+        const action = mixer.clipAction(animClips[0]); // สมมติว่ามีอนิเมชันเดียว
+        action.play();
+        action.paused = true; // เริ่มต้นด้วยการหยุดเล่น
+        return { main: action };
+    }, [animClips, mixer]);
+
+    const lastMouthState = useRef("Close");
+
+    useFrame((state, delta) => {
         const landmarks = landmarksRef.current;
         if (!landmarks || !groupRef.current) {
             if (groupRef.current) groupRef.current.visible = false;
@@ -57,18 +73,46 @@ function FaceAnchor({ landmarksRef, modelSrc }) {
         const quaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
 
         groupRef.current.quaternion.slerp(quaternion, 0.5);
+
+        // --- 3. ตรวจจับการอ้าปากและควบคุมอนิเมชัน ---
+        const upperLip = landmarks[13];
+        const lowerLip = landmarks[14];
+
+        if (upperLip && lowerLip) {
+            const mouthOpening = Math.abs(lowerLip.y - upperLip.y) * 1000;
+            const MOUTH_OPEN_THRESHOLD = 15;
+            const currentMouthState = mouthOpening > MOUTH_OPEN_THRESHOLD ? "Open" : "Close";
+
+            if (currentMouthState !== lastMouthState.current) {
+                console.log(`Mouth State: ${currentMouthState}`);
+                lastMouthState.current = currentMouthState;
+
+                const shouldBeVisible = currentMouthState === "Open";
+                // ควบคุมการมองเห็นของโมเดล
+                stickModel.visible = shouldBeVisible;
+                animModel.visible = shouldBeVisible;
+                // ควบคุมการเล่นอนิเมชัน
+                actions.main.paused = !shouldBeVisible;
+            }
+        }
+
+        // อัปเดต Mixer ในทุกๆ เฟรม
+        mixer.update(delta);
     });
+
+    // 4. ตั้งค่าเริ่มต้นให้โมเดลที่ต้องซ่อน มองไม่เห็นก่อน
+    useEffect(() => {
+        stickModel.visible = false;
+        animModel.visible = false;
+    }, [stickModel, animModel]);
 
     return (
         <group ref={groupRef} visible={false}>
-            <primitive
-                object={model.clone()}
-                // รีเซ็ต rotation ที่นี่ เพราะเราควบคุมด้วย lookAt/Matrix แล้ว
-                // แต่ยังคงสามารถใส่ rotation เริ่มต้นเพื่อ "ปรับแก้" มุมได้
-                rotation={[Math.PI / 1, 0, 0]}
-                scale={0.5} // อาจจะต้องปรับค่า scale ใหม่ให้เหมาะสม
-                position={[0, 0, 0]} // ปรับตำแหน่งเทียบกับจุดอ้างอิง (คาง)
-            />
+            {/* 5. Render โมเดลทั้ง 3 ตัวเป็น child ของ group */}
+            <primitive object={baseModel.clone()} rotation={[Math.PI / 1, 0, 0]} scale={0.5} position={[0, 0.3, -0.2]} />
+            <primitive object={stickModel} rotation={[Math.PI / 1, 0, 0]} scale={0.5} position={[0, 0.3, -0.2]} />
+            <primitive object={animModel} rotation={[Math.PI / 1, 0, 0]} scale={0.5} position={[0, 0.3, -0.2]} />
+
         </group>
     );
 }
@@ -143,7 +187,12 @@ const ARSuperDebug = () => {
                 <directionalLight position={[0, 5, 5]} intensity={1.8} />
                 <Suspense fallback={null}>
                     {/* ส่งขนาดของวิดีโอเข้าไปด้วย */}
-                    <FaceAnchor landmarksRef={landmarksRef} modelSrc="/models/tonkotsu.glb" videoSize={videoSize} />
+                    <FaceAnchor
+                        landmarksRef={landmarksRef}
+                        modelSrc="/models/tonkotsu.glb"
+                        stickSrc="/models/stick.glb"
+                        animSrc="/models/tonkotsu_anim.glb"
+                    />
                     <Preload all />
                 </Suspense>
             </Canvas>
