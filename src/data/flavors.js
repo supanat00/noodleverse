@@ -1,7 +1,7 @@
 // 1. Import ไอคอนทั้งหมดที่ด้านบนของไฟล์
-import iconOriginal from "../assets/icons/original.png";
+import iconTonkotsu from "../assets/icons/tonkotsu.png";
+import iconGochucheese from "../assets/icons/gochucheese.png";
 import iconKimchi from "../assets/icons/kimchi.png";
-import iconTomYum from "../assets/icons/tom-yum.png";
 
 /**
  * นี่คือ "Single Source of Truth" สำหรับข้อมูลรสชาติทั้งหมด
@@ -9,25 +9,25 @@ import iconTomYum from "../assets/icons/tom-yum.png";
  */
 export const FLAVORS = [
   {
-    id: "original",
-    name: "รสดั้งเดิม",
-    videoPublicId: "TKO/MAMAOK/videos/presenter-01",
-    // 2. เพิ่ม property 'iconSrc' โดยใช้ตัวแปรที่ import มา
-    iconSrc: iconOriginal,
-    // modelSrc: '/models/bowl-original.glb', // เตรียมไว้สำหรับโมเดล 3D
+    id: "gochucheese",
+    name: "รสโกชูชีส",
+    videoPublicId: "TKO/MAMAOK/videos/presenter-03",
+    iconSrc: iconGochucheese,
+    modelSrc: "/models/gochucheese.glb",
   },
   {
     id: "kimchi",
     name: "รสกิมจิ",
     videoPublicId: "TKO/MAMAOK/videos/presenter-02",
     iconSrc: iconKimchi,
-    // modelSrc: '/models/bowl-kimchi.glb',
+    modelSrc: "/models/kimchi.glb",
   },
   {
-    id: "tom-yum",
-    name: "รสต้มยำ",
-    videoPublicId: "TKO/MAMAOK/videos/presenter-03",
-    iconSrc: iconTomYum,
-    // modelSrc: '/models/bowl-tom-yum.glb',
+    id: "chashu",
+    name: "รสชาชู",
+    videoPublicId: "TKO/MAMAOK/videos/presenter-01",
+    // 2. เพิ่ม property 'iconSrc' โดยใช้ตัวแปรที่ import มา
+    iconSrc: iconTonkotsu,
+    modelSrc: "/models/tonkotsu.glb", // เตรียมไว้สำหรับโมเดล 3D
   },
 ];
