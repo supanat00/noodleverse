@@ -1,0 +1,131 @@
+/*
+ * App.css
+ *
+ * นี่คือไฟล์สไตล์หลักของแอปพลิเคชัน
+ * เราใช้แนวคิด Mobile-First โดยกำหนดสไตล์สำหรับมือถือก่อน
+ * แล้วค่อยใช้ @media query เพื่อปรับ layout สำหรับจอ Desktop
+ */
+
+/* === Global Resets & Base Styles === */
+
+/*
+ * ใช้ border-box กับทุก element เพื่อให้การคำนวณขนาด (width/height)
+ * รวม padding และ border เข้าไปด้วย ทำให้จัดการ layout ง่ายขึ้นเยอะ
+ */
+* {
+  box-sizing: border-box;
+}
+
+/*
+ * ตั้งค่าพื้นฐานให้ html, body และ #root (div หลักของ React)
+ * ให้ยืดเต็ม viewport และเอา margin/padding เริ่มต้นของเบราว์เซอร์ออก
+ */
+html,
+body,
+#root {
+  width: 100%;
+  height: 100vh; /* ใช้ 100vh เพื่อให้มั่นใจว่าเต็มความสูงของ viewport จริงๆ */
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* ป้องกัน scrollbar โผล่มาโดยไม่ตั้งใจ */
+}
+
+/*
+ * กำหนดฟอนต์กลางๆ ที่ดูดีในทุกระบบปฏิบัติการ
+ */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+}
+
+/* === App Layout Containers === */
+
+/*
+ * .app-background: Wrapper นอกสุด
+ * - บนมือถือ: จะมีขนาดเท่ากับ .app-container พอดี
+ * - บน PC: จะทำหน้าที่เป็นพื้นหลังสีเทาที่อยู่รอบๆ กรอบแอป
+ */
+.app-background {
+  width: 100%;
+  height: 100%;
+  background-color: #000; /* สีพื้นหลังเริ่มต้นสำหรับมือถือ */
+
+  /* ใช้ Flexbox เพื่อจัด .app-container ให้อยู่กลาง (จะเห็นผลบน PC) */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/*
+ * .app-container: กรอบหลักของแอปพลิเคชัน
+ * - บนมือถือ: จะยืดเต็มจอ
+ * - บน PC: จะหดลงมาเป็นกรอบมือถือจำลอง
+ */
+.app-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #000; /* สีพื้นหลังหลักของตัวแอป */
+  color: white; /* ตั้งสีตัวอักษรเริ่มต้น */
+
+  /* จัด content ภายในให้อยู่กลาง (สำหรับ placeholder หรือ loading screen) */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Wrapper สำหรับ AROverlay */
+.ar-overlay-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+
+  /* เริ่มต้นด้วยการซ่อนไว้ */
+  opacity: 0;
+  z-index: 1; /* ให้อยู่ใต้ LoadingScreen */
+
+  transition: opacity 0.5s ease-in-out;
+}
+
+/* เมื่อพร้อมใช้งาน ให้แสดงผล */
+.ar-overlay-wrapper.visible {
+  opacity: 1;
+}
+
+/* === Desktop Breakpoint === */
+/*
+ * เมื่อความกว้างของหน้าจอเกิน 1024px (เลยขนาด iPad Pro แนวตั้ง)
+ * เราจะปรับสไตล์ให้เป็น "Desktop View"
+ */
+@media (min-width: 1025px) {
+  /* เปลี่ยนสีพื้นหลังรอบนอกให้เป็นสีเทาอ่อน */
+  .app-background {
+    background-color: #e0e0e0;
+    padding: 2rem; /* สร้างระยะห่างระหว่างขอบจอ PC กับกรอบแอป */
+  }
+
+  /*
+   * ปรับ .app-container ให้เป็นกรอบมือถือจำลอง
+   */
+  .app-container {
+    width: 414px; /* อ้างอิงจากความกว้างของ iPhone 11/XR */
+    height: 896px; /* อ้างอิงจากความสูงของ iPhone 11/XR */
+
+    /* ป้องกันไม่ให้กรอบแอปใหญ่กว่าหน้าจอคอมเล็กๆ */
+    max-width: 100%;
+    max-height: 100%;
+
+    /* เพิ่มความสวยงามให้ดูเหมือนอุปกรณ์จริง */
+    border-radius: 40px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    border: 8px solid #1c1c1c;
+  }
+}
+
+/* === Utility / Placeholder (ลบทิ้งได้เมื่อไม่ใช้) === */
+.content-placeholder {
+  text-align: center;
+}

@@ -1,0 +1,101 @@
+/*
+ * FlavorSelector.css (Refactored Version)
+ *
+ * สไตล์สำหรับกลุ่มปุ่มเลือกรสชาติ
+ * ปรับแก้ตามดีไซน์ที่เตรียมกราฟิกมาให้แล้ว
+ */
+
+/* === Container หลักที่หุ้มปุ่มทั้งหมด === */
+.flavor-selector-container {
+  position: absolute;
+  z-index: 20;
+  right: 1.5rem; /* 24px */
+
+  /* 
+   * ปรับตำแหน่งแนวตั้ง:
+   * เปลี่ยนจาก top: 50% เป็น top: 60% (หรือค่าอื่นที่ดูเหมาะสม)
+   * เพื่อดันกลุ่มปุ่มทั้งหมดให้เลื่อนลงมาจากกึ่งกลาง
+   * transform: translateY(-50%) ยังคงจำเป็น เพื่อให้การจัดตำแหน่งอ้างอิงจาก "จุดกึ่งกลางของกลุ่มปุ่มเอง"
+   */
+  top: 60%; /* ลองเริ่มจากค่านี้นะครับ */
+  transform: translateY(-50%);
+
+  display: flex;
+  flex-direction: column;
+  gap: 1rem; /* 16px */
+}
+
+/* === ปุ่มแต่ละปุ่ม === */
+.flavor-button-wrapper {
+  cursor: pointer;
+  position: relative;
+
+  /* 
+   * 1. ใช้ clamp() เพื่อสร้างขนาดที่ยืดหยุ่น (Responsive Size)
+   * clamp(MIN, PREFERRED, MAX)
+   * - ขนาดเล็กสุด 50px
+   * - ขนาดที่ต้องการคือ 15% ของความกว้างจอ (15vw)
+   * - ขนาดใหญ่สุด 64px
+   */
+  width: clamp(50px, 15vw, 64px);
+  height: clamp(50px, 15vw, 64px);
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: transform 0.2s ease-in-out;
+}
+
+.flavor-button-wrapper:hover {
+  transform: scale(1.1);
+}
+
+/* === ไอคอนรสชาติ (รูปมาม่า) === */
+.flavor-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* === สไตล์สำหรับสถานะ "Active" (เมื่อถูกเลือก) === */
+.flavor-button-wrapper.active {
+  transform: scale(1.1);
+}
+
+.flavor-button-wrapper.active .flavor-icon {
+  opacity: 0.6;
+}
+
+/* === ไอคอนติ๊กถูก === */
+.checkmark-icon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+
+  /* 2. ลดขนาดไอคอน checkmark ลง และใช้ padding เพื่อจัดตำแหน่ง */
+  /*    ทำให้มันดูเหมือนอยู่ข้างใน และไม่ล้นขอบ */
+  padding: 8%; /* ใส่ padding รอบด้าน 15% ของขนาด parent */
+  box-sizing: border-box; /* สำคัญ! เพื่อให้ padding ถูกนับรวมในขนาด */
+
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/*
+ * เราจะลบ Media Query สำหรับ Landscape ออกไปก่อน
+ * เพราะ clamp() จะช่วยจัดการขนาดในระดับหนึ่งแล้ว
+ * และเราต้องการให้มันอยู่ด้านขวาเสมอตาม Requirement ล่าสุด
+ */

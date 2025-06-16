@@ -1,0 +1,57 @@
+/*
+ * AROverlay.css
+ * สไตล์สำหรับหน้าจอ AR หลัก
+ */
+
+.ar-overlay {
+  width: 100%;
+  height: 100%;
+  position: relative; /* เป็น基準ให้ child ที่เป็น absolute */
+  background-color: #000; /* สีพื้นหลังเผื่อกล้องยังไม่โหลด */
+  overflow: hidden;
+}
+
+/* --- User Camera Feed --- */
+.user-camera-feed {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* ทำให้วิดีโอเต็มพื้นที่โดยไม่เสียสัดส่วน */
+}
+
+/* --- Presenter Video Container --- */
+.presenter-video-container {
+  position: absolute;
+  /* 1. เปลี่ยนการอ้างอิงตำแหน่งจาก % ของความสูง (vh) มาเป็นค่าคงที่ (rem) */
+  /*    'rem' จะอิงตามขนาดฟอนต์ของ root ซึ่งมีความเสถียรกว่า vh/vw */
+  top: 2rem; /* หรือ 32px (1rem = 16px โดยประมาณ) */
+
+  left: 50%;
+  transform: translateX(-50%);
+
+  /* 2. กำหนดความกว้างหลัก และ "จำกัด" ขนาดสูงสุด */
+  width: 90%; /* ให้กว้าง 90% ของจอ (จะทำงานดีบนมือถือแนวตั้ง) */
+  max-width: 450px; /* แต่ห้ามกว้างเกิน 450px เด็ดขาด! (แก้ปัญหาจอกว้าง) */
+
+  /* 3. เปลี่ยน aspect-ratio ให้เหมาะสมกับวิดีโอมากขึ้น (ปกติวิดีโอเป็น 16:9) */
+  aspect-ratio: 3 / 2;
+
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.presenter-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.client-logo {
+  /* กำหนดตำแหน่งให้อยู่มุมซ้ายบนของ container */
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  width: 60px; /* ปรับขนาดตามความเหมาะสม */
+  height: auto;
+  z-index: 10; /* ทำให้โลโก้ลอยอยู่เหนือวิดีโอเสมอ */
+}
