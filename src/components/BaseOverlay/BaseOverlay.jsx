@@ -2,33 +2,32 @@ import React, { useRef, useEffect, Suspense, useState, useMemo } from "react";
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useGLTF, Preload } from '@react-three/drei';
-import { FaceMesh } from "@mediapipe/face_mesh";
+import { FaceMesh, FACEMESH_TESSELATION } from "@mediapipe/face_mesh";
 import { Camera } from "@mediapipe/camera_utils";
+import { drawConnectors } from '@mediapipe/drawing_utils';
 import './ARSuperDebug.css';
 
 // ====================================================================
 // Component 3D สำหรับโมเดล (เวอร์ชันใช้ Raycaster เพื่อความแม่นยำ)
 // ====================================================================
-function FaceAnchor({ landmarksRef, modelUrls }) {
+function FaceAnchor({ landmarksRef, modelSrc, stickSrc, animSrc }) {
     const groupRef = useRef();
     const { camera } = useThree();
 
     // --- 1. โหลดโมเดลทั้งหมด ---
-    const { scene: bowlModel } = useGLTF(modelUrls.bowl);
-    const { scene: chopstickModel } = useGLTF(modelUrls.chopstick);
-    const { scene: propModel, animations: propAnims } = useGLTF(modelUrls.prop);
+    const { scene: baseModel } = useGLTF(modelSrc);
+    const { scene: stickModel } = useGLTF(stickSrc);
+    // useGLTF จะคืนค่า scene และ animations มาให้
+    const { scene: animModel, animations: animClips } = useGLTF(animSrc);
 
     // --- 2. ตั้งค่า Animation Mixer ---
-    const mixer = useMemo(() => new THREE.AnimationMixer(propModel), [propModel]);
+    const mixer = useMemo(() => new THREE.AnimationMixer(animModel), [animModel]);
     const actions = useMemo(() => {
-        if (propAnims && propAnims.length > 0) {
-            const action = mixer.clipAction(propAnims[0]);
-            action.play();
-            action.paused = true;
-            return { main: action };
-        }
-        return { main: null };
-    }, [propAnims, mixer]);
+        const action = mixer.clipAction(animClips[0]); // สมมติว่ามีอนิเมชันเดียว
+        action.play();
+        action.paused = true; // เริ่มต้นด้วยการหยุดเล่น
+        return { main: action };
+    }, [animClips, mixer]);
 
     const lastMouthState = useRef("Close");
 
@@ -79,7 +78,7 @@ function FaceAnchor({ landmarksRef, modelUrls }) {
         const upperLip = landmarks[13];
         const lowerLip = landmarks[14];
 
-        if (upperLip && lowerLip && actions.main) {
+        if (upperLip && lowerLip) {
             const mouthOpening = Math.abs(lowerLip.y - upperLip.y) * 1000;
             const MOUTH_OPEN_THRESHOLD = 15;
             const currentMouthState = mouthOpening > MOUTH_OPEN_THRESHOLD ? "Open" : "Close";
@@ -90,8 +89,9 @@ function FaceAnchor({ landmarksRef, modelUrls }) {
 
                 const shouldBeVisible = currentMouthState === "Open";
                 // ควบคุมการมองเห็นของโมเดล
-                chopstickModel.visible = shouldBeVisible;
-                propModel.visible = shouldBeVisible;
+                stickModel.visible = shouldBeVisible;
+                animModel.visible = shouldBeVisible;
+                // ควบคุมการเล่นอนิเมชัน
                 actions.main.paused = !shouldBeVisible;
             }
         }
@@ -102,16 +102,16 @@ function FaceAnchor({ landmarksRef, modelUrls }) {
 
     // 4. ตั้งค่าเริ่มต้นให้โมเดลที่ต้องซ่อน มองไม่เห็นก่อน
     useEffect(() => {
-        chopstickModel.visible = false;
-        propModel.visible = false;
-    }, [chopstickModel, propModel]);
+        stickModel.visible = false;
+        animModel.visible = false;
+    }, [stickModel, animModel]);
 
     return (
         <group ref={groupRef} visible={false}>
             {/* 5. Render โมเดลทั้ง 3 ตัวเป็น child ของ group */}
-            <primitive object={bowlModel.clone()} rotation={[Math.PI / 1, 0, 0]} scale={0.5} position={[0, 0.3, -0.2]} />
-            <primitive object={chopstickModel} rotation={[Math.PI / 1, 0, 0]} scale={0.5} position={[0, 0.3, -0.2]} />
-            <primitive object={propModel} rotation={[Math.PI / 1, 0, 0]} scale={0.5} position={[0, 0.3, -0.2]} />
+            <primitive object={baseModel.clone()} rotation={[Math.PI / 1, 0, 0]} scale={0.5} position={[0, 0.3, -0.2]} />
+            <primitive object={stickModel} rotation={[Math.PI / 1, 0, 0]} scale={0.5} position={[0, 0.3, -0.2]} />
+            <primitive object={animModel} rotation={[Math.PI / 1, 0, 0]} scale={0.5} position={[0, 0.3, -0.2]} />
 
         </group>
     );
@@ -121,26 +121,10 @@ function FaceAnchor({ landmarksRef, modelUrls }) {
 // ====================================================================
 // Component หลักที่รวมทุกอย่างเข้าด้วยกัน
 // ====================================================================
-const ARSuperDebug = ({ selectedFlavor }) => {
+const ARSuperDebug = () => {
     const videoRef = useRef(null);
     const canvas2DRef = useRef(null);
     const landmarksRef = useRef(null);
-
-    const modelUrls = useMemo(() => {
-        if (!selectedFlavor?.models) {
-            return { bowl: null, chopstick: null, prop: null };
-        }
-
-        // ใช้ Public ID จาก Cloudinary มาสร้าง URL ที่สมบูรณ์
-        return {
-            bowl: selectedFlavor.models.bowl,
-            chopstick: selectedFlavor.models.chopstick,
-            prop: selectedFlavor.models.prop,
-        };
-    }, [selectedFlavor]);
-
-    // ถ้า URL ยังไม่พร้อม (เช่น ตอนเริ่มต้น), ไม่ต้อง render อะไรเลย
-    if (!modelUrls.bowl) return null;
 
     // State ใหม่เพื่อเก็บขนาดของวิดีโอ
     const [videoSize, setVideoSize] = useState({ width: 1280, height: 720 });
@@ -166,7 +150,9 @@ const ARSuperDebug = ({ selectedFlavor }) => {
 
             if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
                 landmarksRef.current = results.multiFaceLandmarks[0];
-
+                for (const landmarks of results.multiFaceLandmarks) {
+                    drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: 'rgba(255, 255, 255, 0.7)', lineWidth: 1.5 });
+                }
             } else {
                 landmarksRef.current = null;
             }
@@ -191,13 +177,21 @@ const ARSuperDebug = ({ selectedFlavor }) => {
             <canvas ref={canvas2DRef} className="output_canvas_debug" />
 
             <Canvas className="ar-canvas-3d-debug">
+                {/* 
+                  ตั้งค่ากล้อง 3D ให้มีสัดส่วนตรงกับวิดีโอ (16:9)
+                  R3F จะจัดการให้มัน 'cover' หน้าจอโดยอัตโนมัติ
+                */}
+
 
                 <ambientLight intensity={1.2} />
                 <directionalLight position={[0, 5, 5]} intensity={1.8} />
                 <Suspense fallback={null}>
                     {/* ส่งขนาดของวิดีโอเข้าไปด้วย */}
                     <FaceAnchor
-                        landmarksRef={landmarksRef} selectedFlavor={selectedFlavor} modelUrls={modelUrls}
+                        landmarksRef={landmarksRef}
+                        modelSrc="https://res.cloudinary.com/da8eemrq8/image/upload/v1750132482/TKO/MAMAOK/models/tonkotsu.glb"
+                        stickSrc="https://res.cloudinary.com/da8eemrq8/image/upload/v1750132483/TKO/MAMAOK/models/stick.glb"
+                        animSrc="https://res.cloudinary.com/da8eemrq8/image/upload/v1750132483/TKO/MAMAOK/models/tonkotsu_anim.glb"
                     />
                     <Preload all />
                 </Suspense>

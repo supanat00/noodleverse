@@ -1,4 +1,6 @@
-// 1. Import ไอคอนทั้งหมดที่ด้านบนของไฟล์
+// src/data/flavors.js
+
+// Import ไอคอน
 import iconTonkotsu from "../assets/icons/tonkotsu.png";
 import iconGochucheese from "../assets/icons/gochucheese.png";
 import iconKimchi from "../assets/icons/kimchi.png";
@@ -6,28 +8,43 @@ import iconKimchi from "../assets/icons/kimchi.png";
 /**
  * นี่คือ "Single Source of Truth" สำหรับข้อมูลรสชาติทั้งหมด
  * ทุกอย่างที่เกี่ยวกับรสชาติจะถูกกำหนดไว้ที่นี่ที่เดียว
+ * รวมถึง Path ไปยังโมเดล 3D ที่ประกอบกัน
  */
 export const FLAVORS = [
   {
     id: "gochucheese",
     name: "รสโกชูชีส",
-    videoPublicId: "TKO/MAMAOK/videos/presenter-03",
     iconSrc: iconGochucheese,
-    modelSrc: "/models/gochucheese.glb",
+    videoPublicId: "TKO/MAMAOK/videos/presenter-03",
+    models: {
+      bowl: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138306/TKO/MAMAOK/models/gochucheese/gochucheese_bowl.glb",
+      chopstick:
+        "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138306/TKO/MAMAOK/models/gochucheese/gochucheese_fork.glb",
+      prop: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138307/TKO/MAMAOK/models/gochucheese/gochucheese_prop.glb",
+    },
   },
   {
     id: "kimchi",
     name: "รสกิมจิ",
-    videoPublicId: "TKO/MAMAOK/videos/presenter-02",
     iconSrc: iconKimchi,
-    modelSrc: "/models/kimchi.glb",
+    videoPublicId: "TKO/MAMAOK/videos/presenter-02",
+    models: {
+      bowl: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138412/TKO/MAMAOK/models/kimchi/kimchi_bowl.glb",
+      chopstick:
+        "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138413/TKO/MAMAOK/models/kimchi/kimchi_chopstick.glb",
+      prop: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138414/TKO/MAMAOK/models/kimchi/kimchi_prop.glb",
+    },
   },
   {
-    id: "chashu",
-    name: "รสชาชู",
-    videoPublicId: "TKO/MAMAOK/videos/presenter-01",
-    // 2. เพิ่ม property 'iconSrc' โดยใช้ตัวแปรที่ import มา
+    id: "tonkotsu",
+    name: "รสทงคัตสึ",
     iconSrc: iconTonkotsu,
-    modelSrc: "/models/tonkotsu.glb", // เตรียมไว้สำหรับโมเดล 3D
+    videoPublicId: "TKO/MAMAOK/videos/presenter-01",
+    models: {
+      bowl: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750137829/TKO/MAMAOK/models/tonkotsu/tonkotsu_bowl.glb",
+      chopstick:
+        "https://res.cloudinary.com/da8eemrq8/image/upload/v1750137830/TKO/MAMAOK/models/tonkotsu/tonkotsu_chopstick.glb",
+      prop: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750137830/TKO/MAMAOK/models/tonkotsu/tonkotsu_prop.glb",
+    },
   },
 ];
