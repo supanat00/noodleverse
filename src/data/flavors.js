@@ -1,9 +1,9 @@
 // src/data/flavors.js
 
 // Import ไอคอน
-import iconTonkotsu from "../assets/icons/tonkotsu.png";
-import iconGochucheese from "../assets/icons/gochucheese.png";
-import iconKimchi from "../assets/icons/kimchi.png";
+import iconTonkotsu from "../assets/icons/tonkotsu.webp";
+import iconGochucheese from "../assets/icons/gochucheese.webp";
+import iconKimchi from "../assets/icons/kimchi.webp";
 
 /**
  * นี่คือ "Single Source of Truth" สำหรับข้อมูลรสชาติทั้งหมด

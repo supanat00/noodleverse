@@ -10,6 +10,7 @@ import { auto } from "@cloudinary/url-gen/qualifiers/videoCodec";
 // Import UI Components
 import FlavorSelector from '../FlavorSelector/FlavorSelector';
 import LoadingScreen from '../LoadingScreen/LoadingScreen'; // Import หน้าโหลด
+import CameraUI from '../CameraUI/CameraUI';
 
 // Import Scene Components
 import ARSuperDebug from '../Debug/ARSuperDebug';
@@ -94,6 +95,7 @@ const AROverlay = () => {
                     selectedFlavorId={selectedFlavorId}
                     onSelectFlavor={setSelectedFlavorId}
                 />
+                <CameraUI />
             </div>
 
             {/* 
