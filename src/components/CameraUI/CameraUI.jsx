@@ -14,7 +14,7 @@ const CloseIcon = () => <svg width="32px" height="32px" viewBox="0 0 24 24" fill
  * @param {React.RefObject<HTMLCanvasElement>} arCanvasRef - Ref ไปยัง Canvas ของ 3D Scene
  * @param {React.RefObject<HTMLCanvasElement>} cameraCanvasRef - Ref ไปยัง Canvas ของภาพกล้อง
  */
-const CameraUI = ({ arCanvasRef, cameraCanvasRef }) => {
+const CameraUI = () => {
     const [mode, setMode] = useState('photo'); // 'photo' or 'video'
     const [isRecording, setIsRecording] = useState(false);
     const [preview, setPreview] = useState({ type: null, src: null });
@@ -24,78 +24,30 @@ const CameraUI = ({ arCanvasRef, cameraCanvasRef }) => {
     const recordedChunksRef = useRef([]);
     const animationFrameIdRef = useRef(null);
 
-    // --- ฟังก์ชันหลัก: ถ่ายภาพ ---
-    const handleTakePhoto = useCallback(() => {
-        const arCanvas = arCanvasRef.current;
-        const cameraCanvas = cameraCanvasRef.current;
-        if (!arCanvas || !cameraCanvas) {
-            console.error("Canvas refs are not available.");
-            return;
+    // --- ฟังก์ชัน: ถ่ายภาพ ---
+    const handleTakePhoto = () => {
+        console.log("ACTION: Take Photo");
+    };
+
+    // --- ฟังก์ชัน: เริ่ม/หยุดถ่ายวิดีโอ ---
+    const handleToggleRecording = () => {
+        const newRecordingState = !isRecording;
+        setIsRecording(newRecordingState);
+        console.log("ACTION: Toggle Recording to", newRecordingState);
+        // ถ้าเป็นการ "หยุด" อัด, ให้แสดงหน้า Preview
+        if (!newRecordingState) {
+            setShowPreview(true);
         }
+    };
 
-        const combinedCanvas = document.createElement('canvas');
-        const ctx = combinedCanvas.getContext('2d');
-        combinedCanvas.width = cameraCanvas.width;
-        combinedCanvas.height = cameraCanvas.height;
-
-        // วาดภาพกล้อง (พื้นหลัง)
-        ctx.drawImage(cameraCanvas, 0, 0);
-        // วาด Scene 3D ทับลงไป
-        ctx.drawImage(arCanvas, 0, 0);
-
-        const dataURL = combinedCanvas.toDataURL('image/png');
-        setPreview({ type: 'image', src: dataURL });
-
-    }, [arCanvasRef, cameraCanvasRef]);
-
-
-    // --- ฟังก์ชันหลัก: เริ่ม/หยุดอัดวิดีโอ ---
-    const handleToggleRecording = useCallback(() => {
-        if (isRecording) { // --- หยุดอัด ---
-            mediaRecorderRef.current?.stop();
-            if (animationFrameIdRef.current) {
-                cancelAnimationFrame(animationFrameIdRef.current);
-            }
-            setIsRecording(false);
-        } else { // --- เริ่มอัด ---
-            const arCanvas = arCanvasRef.current;
-            const cameraCanvas = cameraCanvasRef.current;
-            if (!arCanvas || !cameraCanvas) return;
-
-            const combinedCanvas = document.createElement('canvas');
-            const ctx = combinedCanvas.getContext('2d');
-            combinedCanvas.width = cameraCanvas.width;
-            combinedCanvas.height = cameraCanvas.height;
-
-            const stream = combinedCanvas.captureStream(30); // 30 FPS
-            const recorder = new MediaRecorder(stream, { mimeType: 'video/mp4' });
-            mediaRecorderRef.current = recorder;
-            recordedChunksRef.current = [];
-
-            recorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    recordedChunksRef.current.push(event.data);
-                }
-            };
-
-            recorder.onstop = () => {
-                const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/mp4' });
-                const videoUrl = URL.createObjectURL(videoBlob);
-                setPreview({ type: 'video', src: videoUrl });
-                recordedChunksRef.current = [];
-            };
-
-            const drawFrame = () => {
-                ctx.drawImage(cameraCanvas, 0, 0);
-                ctx.drawImage(arCanvas, 0, 0);
-                animationFrameIdRef.current = requestAnimationFrame(drawFrame);
-            };
-
-            recorder.start();
-            setIsRecording(true);
-            drawFrame();
+    // ฟังก์ชันสำหรับปุ่มชัตเตอร์หลัก
+    const handleShutterClick = () => {
+        if (mode === 'photo') {
+            handleTakePhoto();
+        } else {
+            handleToggleRecording();
         }
-    }, [isRecording, arCanvasRef, cameraCanvasRef]);
+    };
 
 
     // --- ฟังก์ชัน UI อื่นๆ ---
@@ -178,7 +130,7 @@ const CameraUI = ({ arCanvasRef, cameraCanvasRef }) => {
                             <input
                                 type="checkbox"
                                 className="input"
-                                onChange={(e) => setMode(e.target.checked ? 'video' : 'photo')}
+                                onChange={handleModeChange}
                             />
                             <span className="slider"></span>
                         </label>
