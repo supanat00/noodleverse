@@ -2,7 +2,7 @@ import React from 'react';
 import './FlavorSelector.css';
 
 import { FLAVORS } from '../../data/flavors';
-import iconCheckmark from './assets/icons/checkmark.webp';
+import iconCheckmark from '/assets/icons/checkmark.webp';
 
 const FlavorSelector = ({ selectedFlavorId, onSelectFlavor }) => {
     return (

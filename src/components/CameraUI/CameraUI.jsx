@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import './CameraUI.css';
-import iconSwitchCamera from '../../assets/icons/switch-camera.webp';
+import iconSwitchCamera from '/assets/icons/switch-camera.webp';
 
 // ไอคอน SVG สำหรับปุ่มต่างๆ (เพื่อความสะอาด)
 const CameraIcon = () => <svg width="24px" height="24px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="13" r="3" stroke="#FFFFFF" strokeWidth="1.5" /><path d="M2 13.36C2 10.3 2 8.77 2.75 7.67c.37-.53.8-1 1.22-1.2C4.9 6 6.44 6 9.5 6h5c3.05 0 4.58 0 5.5.87.42.38.8.76 1.22 1.29.75 1.1.75 2.63.75 5.69s0 4.59-.75 5.69a3.83 3.83 0 01-1.22 1.29c-.92.87-2.45.87-5.5.87h-5c-3.06 0-4.58 0-5.5-.87a3.83 3.83 0 01-1.22-1.3c-.2-.45-.3-.93-.32-1.77" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" /><path d="M19 10h-1" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" /></svg>;
@@ -130,7 +130,7 @@ const CameraUI = () => {
                             <input
                                 type="checkbox"
                                 className="input"
-                                onChange={handleModeChange}
+                            // onChange={handleModeChange}
                             />
                             <span className="slider"></span>
                         </label>
