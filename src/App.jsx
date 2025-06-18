@@ -41,18 +41,16 @@ function App() {
         };
       });
 
-      const preloadFirstModel = new Promise((resolve) => {
-        const firstFlavor = FLAVORS[0];
-        if (!firstFlavor?.modelSrc) return resolve();
-        fetch(firstFlavor.modelSrc)
-          .then(res => res.ok ? resolve() : resolve())
-          .catch(() => {
-            console.error("Failed to preload model, but continuing.");
-            resolve();
-          });
-      });
+      // สร้าง Promises สำหรับโหลดโมเดลทั้ง 3 ชิ้น
+      const modelPromises = Object.values(firstFlavor.models).map(modelUrl =>
+        new Promise(resolve => {
+          fetch(modelUrl)
+            .then(res => res.ok ? resolve() : resolve()) // ถ้าพลาดก็ยัง resolve
+            .catch(() => resolve());
+        })
+      );
 
-      return Promise.all([preloadFirstVideo, preloadFirstModel]);
+      return Promise.all([preloadFirstVideo, modelPromises]);
     };
 
     // Task 2: Promise สำหรับหน่วงเวลา
@@ -89,9 +87,7 @@ function App() {
     <div className="app-background">
       <div className="app-container">
 
-        {appState === 'loading' && <LoadingScreen />}
-
-        {appState === 'ready' && <AROverlay />}
+        {appState === 'loading' ? <LoadingScreen /> : <AROverlay />}
 
       </div>
     </div>

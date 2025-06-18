@@ -143,7 +143,7 @@ const ARSuperDebug = ({ selectedFlavor }) => {
     if (!modelUrls.bowl) return null;
 
     // State ใหม่เพื่อเก็บขนาดของวิดีโอ
-    const [videoSize, setVideoSize] = useState({ width: 1280, height: 720 });
+    // const [videoSize, setVideoSize] = useState({ width: 1280, height: 720 });
 
     useEffect(() => {
         const faceMesh = new FaceMesh({
