@@ -1,28 +1,20 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef } from 'react';
 import './CameraUI.css';
 import iconSwitchCamera from '/assets/icons/switch-camera.webp';
 
+
 // ไอคอน SVG สำหรับปุ่มต่างๆ (เพื่อความสะอาด)
-const CameraIcon = () => <svg width="24px" height="24px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="13" r="3" stroke="#FFFFFF" strokeWidth="1.5" /><path d="M2 13.36C2 10.3 2 8.77 2.75 7.67c.37-.53.8-1 1.22-1.2C4.9 6 6.44 6 9.5 6h5c3.05 0 4.58 0 5.5.87.42.38.8.76 1.22 1.29.75 1.1.75 2.63.75 5.69s0 4.59-.75 5.69a3.83 3.83 0 01-1.22 1.29c-.92.87-2.45.87-5.5.87h-5c-3.06 0-4.58 0-5.5-.87a3.83 3.83 0 01-1.22-1.3c-.2-.45-.3-.93-.32-1.77" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" /><path d="M19 10h-1" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" /></svg>;
-const VideoIcon = () => <svg width="24px" height="24px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 10l2.58-1.55a2 2 0 013.42 1.55v4a2 2 0 01-3.42 1.55L16 14M6.2 18h6.6c1.12 0 1.68 0 2.1-.22a2 2 0 001.1-1.1c.22-.42.22-1 .22-2.1V9.2c0-1.12 0-1.68-.22-2.1a2 2 0 00-1.1-1.1c-.42-.22-1-.22-2.1-.22H6.2c-1.12 0-1.68 0-2.1.22a2 2 0 00-1.1 1.1c-.22.42-.22 1-.22 2.1v3.6c0 1.12 0 1.68.22 2.1a2 2 0 001.1 1.1c.42.22 1 .22 2.1.22z" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+// ไอคอน SVG สำหรับปุ่มสลับโหมด
+const CameraIcon = () => <svg width="24px" height="24px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="#000000" strokeWidth="1.5" /><path d="M8.5 4.5h7c3.06 0 4.58 0 5.5.87a3.83 3.83 0 011.22 1.29c.88 1 .88 2.5.88 5.56s0 4.59-.88 5.69a3.83 3.83 0 01-1.22 1.3c-.92.87-2.44.87-5.5.87h-7c-3.06 0-4.58 0-5.5-.87a3.83 3.83 0 01-1.22-1.3C2 17.56 2 16.03 2 13s0-4.59.88-5.69A3.83 3.83 0 014 6.01C4.92 5.14 6.44 5.14 9.5 5.14h0" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" /><path d="M18 10h-1" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" /></svg>;
+const VideoIcon = () => <svg width="24px" height="24px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 10l2.58-1.55a2 2 0 013.42 1.55v4a2 2 0 01-3.42 1.55L16 14M6.2 18h6.6c1.12 0 1.68 0 2.1-.22a2 2 0 001.1-1.1c.22-.42.22-1 .22-2.1V9.2c0-1.12 0-1.68-.22-2.1a2 2 0 00-1.1-1.1c-.42-.22-1-.22-2.1-.22H6.2c-1.12 0-1.68 0-2.1.22a2 2 0 00-1.1 1.1c-.22.42-.22 1-.22 2.1v3.6c0 1.12 0 1.68.22 2.1a2 2 0 001.1 1.1c.42.22 1 .22 2.1.22z" stroke="#000000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 const CloseIcon = () => <svg width="32px" height="32px" viewBox="0 0 24 24" fill="transparent" xmlns="http://www.w3.org/2000/svg"><path d="M9 9l6 6m0-6l-6 6" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" /></svg>;
 
 
-/**
- * CameraUI Component
- * จัดการ UI และ Logic การถ่ายภาพ/อัดวิดีโอทั้งหมด
- * @param {React.RefObject<HTMLCanvasElement>} arCanvasRef - Ref ไปยัง Canvas ของ 3D Scene
- * @param {React.RefObject<HTMLCanvasElement>} cameraCanvasRef - Ref ไปยัง Canvas ของภาพกล้อง
- */
 const CameraUI = () => {
     const [mode, setMode] = useState('photo'); // 'photo' or 'video'
     const [isRecording, setIsRecording] = useState(false);
     const [preview, setPreview] = useState({ type: null, src: null });
     const [cameraFacingMode, setCameraFacingMode] = useState('user');
-
-    const mediaRecorderRef = useRef(null);
-    const recordedChunksRef = useRef([]);
-    const animationFrameIdRef = useRef(null);
 
     // --- ฟังก์ชัน: ถ่ายภาพ ---
     const handleTakePhoto = () => {
@@ -31,24 +23,13 @@ const CameraUI = () => {
 
     // --- ฟังก์ชัน: เริ่ม/หยุดถ่ายวิดีโอ ---
     const handleToggleRecording = () => {
-        const newRecordingState = !isRecording;
-        setIsRecording(newRecordingState);
-        console.log("ACTION: Toggle Recording to", newRecordingState);
-        // ถ้าเป็นการ "หยุด" อัด, ให้แสดงหน้า Preview
-        if (!newRecordingState) {
-            setShowPreview(true);
-        }
+        setIsRecording(prevState => !prevState);
     };
 
-    // ฟังก์ชันสำหรับปุ่มชัตเตอร์หลัก
-    const handleShutterClick = () => {
-        if (mode === 'photo') {
-            handleTakePhoto();
-        } else {
-            handleToggleRecording();
-        }
+    const handleModeChange = (e) => {
+        setMode(e.target.checked ? 'video' : 'photo');
+        setIsRecording(false); // หยุดอัดเสมอเมื่อเปลี่ยนโหมด
     };
-
 
     // --- ฟังก์ชัน UI อื่นๆ ---
     const handleClosePreview = () => {
@@ -113,24 +94,46 @@ const CameraUI = () => {
                     </button>
 
                     {/* ปุ่มถ่ายภาพ - วิดีโอ */}
-                    <div
-                        className={`shutter-button ${isRecording ? 'recording' : ''}`}
-                        onClick={mode === 'photo' ? handleTakePhoto : handleToggleRecording}
-                        aria-label={mode === 'photo' ? 'Take Photo' : 'Toggle Recording'}
-                    >
-                        <div className="circle"></div>
-                        <div className="ring"></div>
-                    </div>
+                    {mode === 'photo' ? (
+                        // 1. ปุ่มสำหรับโหมดถ่ายภาพ
+                        <div
+                            className="photo-button"
+                            onClick={handleTakePhoto}
+                            aria-label="Take Photo"
+                        >
+                            <div className="circle"></div>
+                        </div>
+                    ) : (
+                        // 2. ปุ่มสำหรับโหมดวิดีโอ
+                        <div
+                            className={`record-button ${isRecording ? 'recording' : ''}`}
+                            onClick={handleToggleRecording}
+                            aria-label="Toggle Recording"
+                        >
+                            {/* 
+                              ใช้ key={String(isRecording)} เพื่อบังคับให้ React
+                              สร้าง .ring element ใหม่ทุกครั้งที่ isRecording เปลี่ยน
+                              ซึ่งจะทำให้ animation เริ่มต้นใหม่จาก 0 เสมอ
+                            */}
+                            <div className="ring" key={String(isRecording)}>
+                                <svg viewBox="0 0 32 32">
+                                    <circle className="progress-ring" r="15" cx="16" cy="16" fill="transparent" transform="rotate(-90 16 16)" stroke="#FFFFFF" />
+                                </svg>
+                            </div>
+                            <div className="inner-shape"></div>
+                        </div>
+                    )}
 
-                    {/* ปุ่มสลับโหมดถ่ายภาพ - วิดีโอ */}
-                    <div className="switch-button">
+                    {/* ปุ่มสลับโหมด (ใช้โครงสร้างจากโค้ดเก่า) */}
+                    <div id="switchButton" className="switch-button">
                         <label>
-                            <span className="camera-icon"><CameraIcon /></span>
-                            <span className="video-icon"><VideoIcon /></span>
+                            <span className="camera"><CameraIcon /></span>
+                            <span className="video"><VideoIcon /></span>
                             <input
                                 type="checkbox"
                                 className="input"
-                            // onChange={handleModeChange}
+                                id="toggleInput"
+                                onChange={handleModeChange}
                             />
                             <span className="slider"></span>
                         </label>
