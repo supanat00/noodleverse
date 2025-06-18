@@ -23,7 +23,7 @@
    *    - max-height: 160px; แต่ไม่ให้สูงเกิน 160px บนจอที่สูงมากๆ
    *    - min-height: 120px; และไม่ให้เตี้ยเกิน 120px บนจอที่เตี้ย
    */
-  height: clamp(160px, 25vh, 200px);
+  height: clamp(160px, 30vh, 200px);
   background: linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent);
   display: flex;
   justify-content: center;
