@@ -8,7 +8,7 @@
 /* === Container หลักที่หุ้มปุ่มทั้งหมด === */
 .flavor-selector-container {
   position: absolute;
-  z-index: 20;
+  z-index: 999;
   right: 1.5rem; /* 24px */
 
   /* 
