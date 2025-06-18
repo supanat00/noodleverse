@@ -41,16 +41,18 @@ function App() {
         };
       });
 
-      // สร้าง Promises สำหรับโหลดโมเดลทั้ง 3 ชิ้น
-      const modelPromises = Object.values(firstFlavor.models).map(modelUrl =>
-        new Promise(resolve => {
-          fetch(modelUrl)
-            .then(res => res.ok ? resolve() : resolve()) // ถ้าพลาดก็ยัง resolve
-            .catch(() => resolve());
-        })
-      );
+      const preloadFirstModel = new Promise((resolve) => {
+        const firstFlavor = FLAVORS[0];
+        if (!firstFlavor?.models) return resolve();
+        fetch(firstFlavor.models)
+          .then(res => res.ok ? resolve() : resolve())
+          .catch(() => {
+            console.error("Failed to preload model, but continuing.");
+            resolve();
+          });
+      });
 
-      return Promise.all([preloadFirstVideo, modelPromises]);
+      return Promise.all([preloadFirstVideo, preloadFirstModel]);
     };
 
     // Task 2: Promise สำหรับหน่วงเวลา
@@ -86,8 +88,16 @@ function App() {
   return (
     <div className="app-background">
       <div className="app-container">
+        {/*
+          โครงสร้างการ Render:
+          - ตอนแรก appState คือ 'loading', แสดง LoadingScreen
+          - เมื่อ Asset และ Timer พร้อม, appState จะเป็น 'ready', แสดงทั้งสองอย่าง
+          - AROverlay จะถูกซ่อนด้วย CSS และจะขออนุญาตกล้อง
+          - เมื่อกล้องพร้อม, AROverlay จะจัดการ Fade-in UI ภายในตัวเอง
+        */}
+        {appState === 'loading' && <LoadingScreen />}
 
-        {appState === 'loading' ? <LoadingScreen /> : <AROverlay />}
+        {appState === 'ready' && <AROverlay />}
 
       </div>
     </div>
