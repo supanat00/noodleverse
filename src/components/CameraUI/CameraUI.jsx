@@ -93,28 +93,27 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
         });
     }, [arSystemRef]);
 
-    // --- ฟังก์ชันอัดวิดีโอ (แปลจาก start/stopVideoRecording) ---
+    // --- ฟังก์ชันอัดวิดีโอ (นำ Logic จากโค้ดเก่ามาใส่) ---
     const handleToggleRecording = useCallback(() => {
         const newIsRecording = !isRecording;
         setIsRecording(newIsRecording);
 
-        if (newIsRecording) { // --- เริ่มอัด ---
+        if (newIsRecording) {
+            // ================== ส่วนของการ "เริ่มอัด" (เทียบเท่า startVideoRecording) ==================
             console.log("ACTION: Start Recording");
-            // **[แก้ไข 1]** ดึง canvas จาก arSystemRef.current
             const arCanvas = arSystemRef.current?.arCanvas;
             const cameraCanvas = arSystemRef.current?.cameraCanvas;
 
             if (!arCanvas || !cameraCanvas) {
                 console.error("Canvas refs for recording are not available.");
                 alert("ไม่สามารถอัดวิดีโอได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง");
-                setIsRecording(false); // ยกเลิกการอัด
+                setIsRecording(false);
                 return;
             }
 
-            // สร้าง Canvas เสมือนสำหรับอัด (ตามโค้ดเก่า)
+            // 1. สร้าง Canvas เสมือนสำหรับอัด (เหมือนโค้ดเก่า)
             const recordingCanvas = document.createElement('canvas');
             const ctx = recordingCanvas.getContext('2d');
-
             const isLandscape = window.innerWidth > window.innerHeight;
             recordingCanvas.width = isLandscape ? 1280 : 720;
             recordingCanvas.height = isLandscape ? 720 : 1280;
@@ -127,35 +126,49 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
             mediaRecorderRef.current = recorder;
             recordedChunksRef.current = [];
 
+            // 3. ตั้งค่า ondataavailable เพื่อเก็บข้อมูลวิดีโอ
             recorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
                     recordedChunksRef.current.push(event.data);
                 }
             };
 
+            // 4. ตั้งค่า onstop เพื่อสร้างไฟล์และแสดง Preview
             recorder.onstop = () => {
-                const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/mp4' });
+                console.log("Recording stopped, creating blob.");
+                const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
                 const videoUrl = URL.createObjectURL(videoBlob);
+
+                // ใช้ State ของ React ในการแสดงผล
                 setPreview({ type: 'video', src: videoUrl });
                 setShowPreview(true);
-                recordedChunksRef.current = [];
+
+                recordedChunksRef.current = []; // Reset เพื่อการอัดครั้งถัดไป
             };
 
             recorder.start();
+            console.log("Recorder started.");
 
-            // สร้าง Loop การวาดลง Canvas ที่จะอัด (ตามโค้ดเก่า)
+            // 6. สร้าง Loop การวาดลง Canvas ที่จะอัด (เทียบเท่า drawVideo)
             const drawFrameForRecording = () => {
+                // ตรวจสอบว่ายังต้องอัดอยู่หรือไม่ ถ้าไม่ ให้หยุด Loop
+                if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') {
+                    console.log("Stopping draw loop.");
+                    if (animationFrameIdRef.current) {
+                        cancelAnimationFrame(animationFrameIdRef.current);
+                        animationFrameIdRef.current = null;
+                    }
+                    return;
+                }
+
+                // วาด cameraCanvas (กลับด้าน)
                 if (cameraCanvas) {
                     ctx.save();
                     ctx.translate(recordingCanvas.width, 0);
-                    ctx.scale(-1, 1); // กลับด้านเฉพาะการวาด camera
-
-                    const sourceWidth = cameraCanvas.width;
-                    const sourceHeight = cameraCanvas.height;
-                    const sourceRatio = sourceWidth / sourceHeight;
+                    ctx.scale(-1, 1);
+                    const sourceRatio = cameraCanvas.width / cameraCanvas.height;
                     const targetRatio = recordingCanvas.width / recordingCanvas.height;
-
-                    let drawWidth, drawHeight;
+                    let drawWidth, drawHeight, offsetX, offsetY;
                     if (sourceRatio > targetRatio) {
                         drawHeight = recordingCanvas.height;
                         drawWidth = drawHeight * sourceRatio;
@@ -163,10 +176,8 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
                         drawWidth = recordingCanvas.width;
                         drawHeight = drawWidth / sourceRatio;
                     }
-
-                    const offsetX = (recordingCanvas.width - drawWidth) / 2;
-                    const offsetY = (recordingCanvas.height - drawHeight) / 2;
-
+                    offsetX = (recordingCanvas.width - drawWidth) / 2;
+                    offsetY = (recordingCanvas.height - drawHeight) / 2;
                     ctx.drawImage(cameraCanvas, offsetX, offsetY, drawWidth, drawHeight);
                     ctx.restore();
                 }
@@ -174,22 +185,20 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
                 // วาด AR canvas ทับ
                 ctx.drawImage(arCanvas, 0, 0, recordingCanvas.width, recordingCanvas.height);
 
-                if (isRecording) {
-                    animationFrameIdRef.current = requestAnimationFrame(drawFrameForRecording);
-                }
+                // ขอเฟรมต่อไป
+                animationFrameIdRef.current = requestAnimationFrame(drawFrameForRecording);
             };
+
+            // เริ่ม Loop การวาด
             drawFrameForRecording();
 
-        } else { // --- หยุดอัด ---
+        } else {
+            // ================== ส่วนของการ "หยุดอัด" (เทียบเท่า stopVideoRecording) ==================
             console.log("ACTION: Stop Recording");
-            if (mediaRecorderRef.current) {
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
                 mediaRecorderRef.current.stop();
-                // หยุด Loop การวาด
-                if (animationFrameIdRef.current) {
-                    cancelAnimationFrame(animationFrameIdRef.current);
-                    animationFrameIdRef.current = null;
-                }
             }
+            // Loop การวาดจะหยุดเองเมื่อ state ของ recorder เปลี่ยน
         }
     }, [isRecording, arSystemRef]);
 
