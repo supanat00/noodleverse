@@ -7,13 +7,13 @@ import { Camera } from "@mediapipe/camera_utils";
 
 import './ARSuperDebug.css';
 
+// ไม่ต้องใช้คอมโพเนนต์ RoundedPlane แล้ว ลบทิ้งได้เลย
+
 /**
- * HeadsUpDisplay (HUD) Component
- * สร้าง UI ของวิดีโอพรีเซนเตอร์และโลโก้ขึ้นมาใหม่ในฉาก 3D
- * โดยเลียนแบบการจัดวางจาก CSS เดิมให้แม่นยำที่สุด
+ * HeadsUpDisplay (HUD) Component (เวอร์ชันแก้ไข 최종)
+ * สร้าง UI วิดีโอขอบมน โดยใช้ Shader เพื่อประสิทธิภาพและความยืดหยุ่นสูงสุด
  */
 function HeadsUpDisplay({ selectedFlavor }) {
-    // ดึง 'viewport' (ขนาดที่เห็นในหน่วย 3D) และ 'size' (ขนาด canvas เป็น pixel) มาใช้
     const { viewport, size } = useThree();
 
     // --- 1. โหลด Textures ---
@@ -21,78 +21,113 @@ function HeadsUpDisplay({ selectedFlavor }) {
     const videoUrl = selectedFlavor?.videoPublicId || '';
 
     const logoTexture = useTexture(logoUrl);
-    // ตรวจสอบให้แน่ใจว่า videoUrl ไม่ใช่ค่าว่างก่อนเรียกใช้ useVideoTexture
     const videoTexture = useVideoTexture(videoUrl, {
         muted: true, loop: true, start: true, crossOrigin: "anonymous",
     });
 
-    // ====================================================================
-    // --- 2. [หัวใจหลัก] แปลงค่าจาก CSS (px, rem) เป็นหน่วย 3D ---
-    // ====================================================================
-
-    // ค่าคงที่จากไฟล์ AROverlay.css
-    const remToPx = 16; // ค่ามาตรฐานของ 1rem คือ 16px
-    const topMarginInRem = 2; // top: 2rem;
-    const containerMaxWidthInPx = 450; // max-width: 450px;
-    const containerWidthPercent = 0.90; // width: 90%;
-    const containerAspectRatio = 3 / 2; // aspect-ratio: 3 / 2;
-    const logoWidthInPx = 60; // width: 60px;
-    const logoMarginInPx = 15; // top: 15px; left: 15px;
-
-    // คำนวณอัตราส่วนการแปลง pixel (ของ canvas) ไปเป็นหน่วย 3D (world unit)
-    // นี่คือกุญแจสำคัญที่ทำให้เราเทียบขนาดได้
+    // --- 2. คำนวณขนาดและตำแหน่ง ---
+    const remToPx = 16;
+    const topMarginInRem = 2;
+    const containerMaxWidthInPx = 450;
+    const containerWidthPercent = 0.90;
+    const logoWidthInPx = 60;
+    const logoMarginInPx = 15;
     const pxToWorldRatio = viewport.width / size.width;
 
-    // --- คำนวณความกว้างของ Container (วิดีโอ) ---
-    // 1. ความกว้างแบบ responsive (90% ของ viewport) ในหน่วย 3D
     const responsiveWidth = viewport.width * containerWidthPercent;
-    // 2. ความกว้างสูงสุด (450px) ในหน่วย 3D
     const maxWidthInWorld = containerMaxWidthInPx * pxToWorldRatio;
-    // 3. เลือกค่าที่น้อยกว่ามาใช้ (นี่คือ logic ของ `max-width` ใน CSS)
     const containerWidth = Math.min(responsiveWidth, maxWidthInWorld);
 
-    // --- คำนวณความสูงของ Container จาก Aspect Ratio ---
-    const containerHeight = containerWidth / containerAspectRatio;
+    const videoAspectRatio =
+        videoTexture.image && videoTexture.image.videoHeight > 0
+            ? videoTexture.image.videoWidth / videoTexture.image.videoHeight
+            : 16 / 9;
+    const containerHeight = containerWidth / videoAspectRatio;
 
-    // --- คำนวณตำแหน่งของ Container (กึ่งกลางบน) ---
-    const containerX = 0; // CSS: left: 50%, transform: translateX(-50%) คือกึ่งกลางแนวนอน
-    // คำนวณระยะห่างจากขอบบน (top: 2rem)
+    const containerX = 0;
     const topMarginInWorld = (topMarginInRem * remToPx) * pxToWorldRatio;
-    // ตำแหน่ง Y คือ ขอบบนสุดของจอ (viewport.height / 2)
-    // ลบด้วยระยะห่างที่คำนวณไว้
-    // และลบอีกครึ่งหนึ่งของความสูง container เพื่อให้ขอบบนของ container ตรงตำแหน่ง
     const containerY = (viewport.height / 2) - topMarginInWorld - (containerHeight / 2);
 
-    // --- คำนวณขนาดและตำแหน่งของ Logo (อ้างอิงจาก Container) ---
-    const logoWidth = logoWidthInPx * pxToWorldRatio;
-    const logoHeight = logoWidth; // สมมติว่าโลโก้เป็นสี่เหลี่ยมจัตุรัส
-    const logoMargin = logoMarginInPx * pxToWorldRatio;
+    // --- [Shader] คำนวณรัศมีความโค้ง ---
+    // รัศมีในหน่วย UV (0 ถึง 1) จะให้ผลลัพธ์ที่คงที่กว่า
+    // 0.05 คือ 5% ของด้านที่สั้นที่สุด จะทำให้มุมโค้งสวยงาม
+    const cornerRadius = 0.05;
 
-    // ตำแหน่งโลโก้จะสัมพันธ์กับจุดกึ่งกลางของ Container (ซึ่งตอนนี้อยู่ที่ 0,0)
-    // X: ขอบซ้ายสุด (-containerWidth/2) + ระยะห่าง (logoMargin) + ครึ่งนึงของความกว้างโลโก้
+    const logoWidth = logoWidthInPx * pxToWorldRatio;
+    const logoHeight = logoWidth;
+    const logoMargin = logoMarginInPx * pxToWorldRatio;
     const logoX = -containerWidth / 2 + logoMargin + (logoWidth / 2);
-    // Y: ขอบบนสุด (+containerHeight/2) - ระยะห่าง (logoMargin) - ครึ่งนึงของความสูงโลโก้
     const logoY = containerHeight / 2 - logoMargin - (logoHeight / 2);
 
+    // --- [หัวใจหลัก] สร้าง Shader Material ---
+    const roundedVideoMaterial = useMemo(() => {
+        return new THREE.ShaderMaterial({
+            uniforms: {
+                // ส่งค่าต่างๆ ที่จำเป็นเข้าไปใน shader
+                uMap: { value: videoTexture },
+                uRadius: { value: cornerRadius },
+                uAspect: { value: containerWidth / containerHeight },
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform sampler2D uMap;
+                uniform float uRadius;
+                uniform float uAspect;
+                varying vec2 vUv;
+
+                // ฟังก์ชันคำนวณ Signed Distance Function (SDF) ของสี่เหลี่ยมขอบมน
+                float sdRoundedBox(vec2 p, vec2 b, float r) {
+                    vec2 q = abs(p) - b + r;
+                    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
+                }
+
+                void main() {
+                    // ปรับ UV ให้อยู่กึ่งกลางที่ (0,0) และปรับตาม aspect ratio
+                    vec2 centeredUv = (vUv - 0.5) * vec2(uAspect, 1.0);
+                    vec2 boxSize = vec2(uAspect, 1.0) * 0.5; // ขนาดครึ่งนึงของกล่อง
+
+                    // คำนวณระยะห่าง
+                    float d = sdRoundedBox(centeredUv, boxSize, uRadius);
+
+                    // ดึงสีจากวิดีโอ
+                    vec4 texColor = texture2D(uMap, vUv);
+
+                    // ใช้ smoothstep เพื่อให้ขอบเรียบเนียน ไม่เป็นรอยหยัก
+                    // ถ้า d > 0 (อยู่นอก) alpha จะเป็น 0 (โปร่งใส)
+                    // ถ้า d < 0 (อยู่ข้างใน) alpha จะเป็น 1 (ทึบแสง)
+                    float alpha = 1.0 - smoothstep(0.0, 0.005, d);
+
+                    // สีสุดท้ายคือสีจากวิดีโอ แต่ใช้ alpha ที่เราคำนวณได้
+                    // และคูณกับ alpha เดิมของ texture เผื่อวิดีโอมีส่วนโปร่งใส
+                    gl_FragColor = vec4(texColor.rgb, texColor.a * alpha);
+                }
+            `,
+            transparent: true, // เปิดใช้งานความโปร่งใส
+        });
+    }, [videoTexture, cornerRadius, containerWidth, containerHeight]);
+
     return (
-        // Group หลักของ HUD ทั้งหมด จะถูกจัดตำแหน่งตามที่คำนวณไว้
         <group position={[containerX, containerY, -0.1]}>
-            {/* Plane สำหรับวิดีโอ (พื้นหลังของ HUD) */}
+            {/* [แก้ไข] กลับมาใช้ PlaneGeometry แต่ใส่ material ที่เป็น shader ของเราแทน */}
             <mesh>
                 <planeGeometry args={[containerWidth, containerHeight]} />
-                <meshBasicMaterial map={videoTexture} transparent />
+                <primitive object={roundedVideoMaterial} />
             </mesh>
 
-            {/* Plane สำหรับโลโก้ (อยู่ข้างหน้าวิดีโอเล็กน้อย z=0.01 เพื่อกันภาพซ้อน) */}
+            {/* โลโก้ยังคงเหมือนเดิม เพราะเป็นสี่เหลี่ยมธรรมดาและต้องการสีสด */}
             <mesh position={[logoX, logoY, 0.01]}>
                 <planeGeometry args={[logoWidth, logoHeight]} />
-                <meshBasicMaterial map={logoTexture} transparent />
+                <meshBasicMaterial map={logoTexture} transparent toneMapped={false} />
             </mesh>
         </group>
     );
 }
-
-
 // ====================================================================
 // Component 3D สำหรับโมเดล (เวอร์ชันใช้ Raycaster เพื่อความแม่นยำ)
 // ====================================================================
