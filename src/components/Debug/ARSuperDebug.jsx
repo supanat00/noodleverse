@@ -54,7 +54,16 @@ function HeadsUpDisplay({ selectedFlavor }) {
     const cornerRadius = 0.05;
 
     const logoWidth = logoWidthInPx * pxToWorldRatio;
-    const logoHeight = logoWidth;
+    // [แก้ไข] คำนวณ Aspect Ratio ที่แท้จริงของโลโก้
+    // โดยอ่านจาก naturalWidth/naturalHeight ของ image ที่โหลดมาแล้ว
+    const logoAspectRatio =
+        logoTexture.image && logoTexture.image.naturalHeight > 0
+            ? logoTexture.image.naturalWidth / logoTexture.image.naturalHeight
+            : 1; // ถ้ายังโหลดไม่เสร็จ ให้ใช้ 1:1 ไปก่อนชั่วคราว
+
+    // [แก้ไข] คำนวณความสูงจาก Aspect Ratio ที่ถูกต้อง แทนที่จะสมมติว่าเป็นสี่เหลี่ยมจัตุรัส
+    const logoHeight = logoWidth / logoAspectRatio;
+
     const logoMargin = logoMarginInPx * pxToWorldRatio;
     const logoX = -containerWidth / 2 + logoMargin + (logoWidth / 2);
     const logoY = containerHeight / 2 - logoMargin - (logoHeight / 2);
@@ -235,6 +244,100 @@ function FaceAnchor({ landmarksRef, modelUrls }) {
             <primitive object={chopstickModel} rotation={[Math.PI / 1, 0, 0]} scale={1.35} position={[0, 2.2, 0]} />
             <primitive object={propModel} rotation={[Math.PI / 1, 0, 0]} scale={1.35} position={[0, 2.2, 0]} />
 
+        </group>
+    );
+}
+
+// ====================================================================
+// Componentใหม่สำหรับ "ตะเกียบ" โดยเฉพาะ
+// ====================================================================
+function ChopstickAnchor({ landmarksRef, modelUrls }) {
+    const groupRef = useRef();
+    const { viewport } = useThree(); // ใช้ viewport สำหรับการจัดตำแหน่ง
+
+    // --- 1. โหลดโมเดลตะเกียบและอนิเมชัน ---
+    const { scene: chopstickModel, animations: chopstickAnims } = useGLTF(modelUrls.chopstick);
+
+    // --- 2. ตั้งค่า Animation Mixer สำหรับตะเกียบ ---
+    const mixer = useMemo(() => new THREE.AnimationMixer(chopstickModel), [chopstickModel]);
+    const actions = useMemo(() => {
+        if (chopstickAnims && chopstickAnims.length > 0) {
+            const action = mixer.clipAction(chopstickAnims[0]);
+            action.play();
+            action.paused = true;
+            return { main: action };
+        }
+        return { main: null };
+    }, [chopstickAnims, mixer]);
+
+    const lastMouthState = useRef("Close");
+
+    // --- 3. ตั้งค่าเริ่มต้นให้มองไม่เห็น ---
+    useEffect(() => {
+        chopstickModel.visible = false;
+    }, [chopstickModel]);
+
+    useFrame((state, delta) => {
+        const landmarks = landmarksRef.current;
+        if (!landmarks || !groupRef.current) {
+            if (groupRef.current) groupRef.current.visible = false;
+            return;
+        }
+
+        groupRef.current.visible = true;
+
+        // --- 4. คำนวณการหมุนแบบ "หน่วง" ---
+        const forehead = new THREE.Vector3(landmarks[10].x, landmarks[10].y, landmarks[10].z);
+        const chin = new THREE.Vector3(landmarks[152].x, landmarks[152].y, landmarks[152].z);
+        const leftCheek = new THREE.Vector3(landmarks[234].x, landmarks[234].y, landmarks[234].z);
+        const rightCheek = new THREE.Vector3(landmarks[454].x, landmarks[454].y, landmarks[454].z);
+
+        const yAxis = new THREE.Vector3().subVectors(forehead, chin).normalize();
+        const xAxis = new THREE.Vector3().subVectors(rightCheek, leftCheek).normalize();
+        const zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
+
+        const rotationMatrix = new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis);
+        const faceQuaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
+
+        // [หัวใจหลัก] แทนที่จะหมุนตาม 100%, เราจะ slerp จากมุมมองปกติ (Identity)
+        // ไปยังมุมของใบหน้าแค่เล็กน้อย (เช่น 20% หรือ 0.2)
+        const DAMPING_FACTOR = 0.2;
+        const initialQuaternion = new THREE.Quaternion(); // Quaternion ที่ไม่หมุนเลย
+        groupRef.current.quaternion.slerp(
+            initialQuaternion.clone().slerp(faceQuaternion, DAMPING_FACTOR),
+            0.5 // ทำให้การเคลื่อนไหวสมูท
+        );
+
+
+        // --- 5. ตรวจจับการอ้าปากและควบคุมอนิเมชัน (เหมือนเดิม) ---
+        const upperLip = landmarks[13];
+        const lowerLip = landmarks[14];
+
+        if (upperLip && lowerLip && actions.main) {
+            const mouthOpening = Math.abs(lowerLip.y - upperLip.y) * 1000;
+            const MOUTH_OPEN_THRESHOLD = 15;
+            const currentMouthState = mouthOpening > MOUTH_OPEN_THRESHOLD ? "Open" : "Close";
+
+            if (currentMouthState !== lastMouthState.current) {
+                lastMouthState.current = currentMouthState;
+                const shouldBeVisible = currentMouthState === "Open";
+                chopstickModel.visible = shouldBeVisible; // ควบคุมการมองเห็นของตะเกียบ
+                actions.main.paused = !shouldBeVisible;
+            }
+        }
+
+        mixer.update(delta);
+    });
+
+    // --- 6. Render โมเดลพร้อมกำหนดตำแหน่งและขนาด ---
+    // จัดตำแหน่งให้อยู่มุมขวาล่างของจอ โดยอ้างอิงจาก viewport
+    const positionX = viewport.width / 2 - 1.5;
+    const positionY = -viewport.height / 2 + 1.5;
+    const scale = 2.5; // ปรับขนาดตามความเหมาะสม
+
+    return (
+        <group ref={groupRef} position={[positionX, positionY, -2]} scale={scale}>
+            <primitive object={chopstickModel} rotation={[Math.PI / 1, 0, 0]} />
         </group>
     );
 }
