@@ -15,12 +15,11 @@ const logoCldImage = cld.image('TKO/MAMAOK/images/mama-logo.webp')
 const CameraIcon = () => <svg width="24px" height="24px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="#000000" strokeWidth="1.5" /><path d="M8.5 4.5h7c3.06 0 4.58 0 5.5.87a3.83 3.83 0 011.22 1.29c.88 1 .88 2.5.88 5.56s0 4.59-.88 5.69a3.83 3.83 0 01-1.22 1.3c-.92.87-2.44.87-5.5.87h-7c-3.06 0-4.58 0-5.5-.87a3.83 3.83 0 01-1.22-1.3C2 17.56 2 16.03 2 13s0-4.59.88-5.69A3.83 3.83 0 014 6.01C4.92 5.14 6.44 5.14 9.5 5.14h0" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" /><path d="M18 10h-1" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" /></svg>;
 const VideoIcon = () => <svg width="24px" height="24px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 10l2.58-1.55a2 2 0 013.42 1.55v4a2 2 0 01-3.42 1.55L16 14M6.2 18h6.6c1.12 0 1.68 0 2.1-.22a2 2 0 001.1-1.1c.22-.42.22-1 .22-2.1V9.2c0-1.12 0-1.68-.22-2.1a2 2 0 00-1.1-1.1c-.42-.22-1-.22-2.1-.22H6.2c-1.12 0-1.68 0-2.1.22a2 2 0 00-1.1 1.1c-.22.42-.22 1-.22 2.1v3.6c0 1.12 0 1.68.22 2.1a2 2 0 001.1 1.1c.42.22 1 .22 2.1.22z" stroke="#000000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 
-const CameraUI = ({ arCanvasRef, cameraCanvasRef }) => {
-    const [mode, setMode] = useState('photo'); // 'photo' or 'video'
+const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
+    const [mode, setMode] = useState('photo');
     const [isRecording, setIsRecording] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
-    const [cameraFacingMode, setCameraFacingMode] = useState('user');
-    const [preview, setPreview] = useState({ type: '', src: '' }); // เพิ่ม state นี้ที่หายไป
+    const [preview, setPreview] = useState({ type: '', src: '' });
 
     // ใช้ Ref เก็บ MediaRecorder และข้อมูลวิดีโอ
     const mediaRecorderRef = useRef(null);
@@ -32,11 +31,13 @@ const CameraUI = ({ arCanvasRef, cameraCanvasRef }) => {
     const handleTakePhoto = useCallback(() => {
         console.log("ACTION: Take Photo");
 
-        const arCanvas = arCanvasRef.current;
-        const cameraCanvas = cameraCanvasRef.current;
+        // **[แก้ไข 1]** ดึง canvas จาก arSystemRef.current
+        const arCanvas = arSystemRef.current?.arCanvas;
+        const cameraCanvas = arSystemRef.current?.cameraCanvas;
 
         if (!arCanvas || !cameraCanvas) {
-            console.error("Canvas refs for capture are not available.");
+            console.error("Canvas refs for capture are not available. Check arSystemRef.", { arSystemRef: arSystemRef.current });
+            alert("ไม่สามารถถ่ายภาพได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง");
             return;
         }
 
@@ -90,7 +91,7 @@ const CameraUI = ({ arCanvasRef, cameraCanvasRef }) => {
             setPreview({ type: 'image', src: dataURL });
             setShowPreview(true);
         });
-    }, [arCanvasRef, cameraCanvasRef]);
+    }, [arSystemRef]);
 
     // --- ฟังก์ชันอัดวิดีโอ (แปลจาก start/stopVideoRecording) ---
     const handleToggleRecording = useCallback(() => {
@@ -99,9 +100,16 @@ const CameraUI = ({ arCanvasRef, cameraCanvasRef }) => {
 
         if (newIsRecording) { // --- เริ่มอัด ---
             console.log("ACTION: Start Recording");
-            const arCanvas = arCanvasRef.current;
-            const cameraCanvas = cameraCanvasRef.current;
-            if (!arCanvas || !cameraCanvas) return;
+            // **[แก้ไข 1]** ดึง canvas จาก arSystemRef.current
+            const arCanvas = arSystemRef.current?.arCanvas;
+            const cameraCanvas = arSystemRef.current?.cameraCanvas;
+
+            if (!arCanvas || !cameraCanvas) {
+                console.error("Canvas refs for recording are not available.");
+                alert("ไม่สามารถอัดวิดีโอได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง");
+                setIsRecording(false); // ยกเลิกการอัด
+                return;
+            }
 
             // สร้าง Canvas เสมือนสำหรับอัด (ตามโค้ดเก่า)
             const recordingCanvas = document.createElement('canvas');
@@ -183,14 +191,15 @@ const CameraUI = ({ arCanvasRef, cameraCanvasRef }) => {
                 }
             }
         }
-    }, [isRecording, arCanvasRef, cameraCanvasRef]);
+    }, [isRecording, arSystemRef]);
 
     // ฟังก์ชันสำหรับปุ่มสลับกล้องหน้า - หลัง
     const handleSwitchCamera = useCallback(() => {
         console.log("ACTION: Switch Camera");
+        // **[แก้ไข 3]** เรียกใช้ฟังก์ชันจาก parent เพื่อเปลี่ยน state
         const newMode = cameraFacingMode === 'user' ? 'environment' : 'user';
-        setCameraFacingMode(newMode);
-    }, [cameraFacingMode]);
+        onSwitchCamera(newMode);
+    }, [cameraFacingMode, onSwitchCamera]);
 
     // --- ฟังก์ชัน: เปลี่ยนโหมดถ่ายภาพ/วิดีโอ ---
     const handleModeChange = useCallback((e) => {

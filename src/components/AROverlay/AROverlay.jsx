@@ -27,26 +27,21 @@ const LOADING_DURATION = 8000; // 3 วินาที
  */
 const AROverlay = () => {
     // --- STATE MANAGEMENT ---
-    // State สำหรับเก็บ ID ของรสชาติที่ถูกเลือก
     const [selectedFlavorId, setSelectedFlavorId] = useState(FLAVORS[0].id);
-
-    // State สำหรับควบคุมหน้าโหลด: 'loading' หรือ 'ready'
     const [appState, setAppState] = useState('loading');
 
-    const arCanvasRef = useRef(null);
-    const cameraCanvasRef = useRef(null);
+    // **[แก้ไข 1]** สร้าง ref ตัวเดียวเพื่อรับ handles จาก ARSuperDebug
+    const arSystemRef = useRef(null);
 
-    // --- useEffect สำหรับนับเวลา ---
+    // **[แก้ไข 3 - เพิ่ม]** จัดการ State ของกล้องที่นี่ (Lifting State Up)
+    const [cameraFacingMode, setCameraFacingMode] = useState('user'); // 'user' หรือ 'environment'
+
     useEffect(() => {
-        // ตั้งเวลา 3 วินาที
         const timer = setTimeout(() => {
-            // เมื่อครบ 3 วิ, เปลี่ยน state เพื่อเอาหน้าโหลดออก
             setAppState('ready');
         }, LOADING_DURATION);
-
-        // Cleanup function เพื่อเคลียร์ timer
         return () => clearTimeout(timer);
-    }, []); // [] ทำงานแค่ครั้งเดียวตอน component ถูกสร้าง
+    }, []);
 
     // --- DATA & LOGIC ---
     // ข้อมูลรสชาติจาก ID ที่เราเลือก
@@ -74,7 +69,9 @@ const AROverlay = () => {
               - และส่ง callback `onCameraReady` ไปด้วย
             */}
             <ARSuperDebug
+                ref={arSystemRef}
                 selectedFlavor={selectedFlavor}
+                cameraFacingMode={cameraFacingMode}
             />
 
             {/* 
@@ -99,8 +96,9 @@ const AROverlay = () => {
                     onSelectFlavor={setSelectedFlavorId}
                 />
                 <CameraUI
-                    arCanvasRef={arCanvasRef}
-                    cameraCanvasRef={cameraCanvasRef}
+                    arSystemRef={arSystemRef}
+                    cameraFacingMode={cameraFacingMode}
+                    onSwitchCamera={setCameraFacingMode}
                 />
             </div>
 

@@ -121,20 +121,22 @@ function FaceAnchor({ landmarksRef, modelUrls }) {
 // ====================================================================
 // Component หลักที่รวมทุกอย่างเข้าด้วยกัน
 // ====================================================================
-const ARSuperDebug = forwardRef(({ selectedFlavor, onCameraReady }, ref) => {
+const ARSuperDebug = forwardRef(({ selectedFlavor, cameraFacingMode }, ref) => {
+
     const videoRef = useRef(null);
     const canvas2DRef = useRef(null);
     const landmarksRef = useRef(null);
-
     const glRef = useRef(null); // Ref ใหม่สำหรับเก็บ WebGL Renderer
 
     useImperativeHandle(ref, () => ({
-        // Parent (AROverlay) จะสามารถเข้าถึงค่าเหล่านี้ได้ผ่าน ref.current
-        cameraCanvas: canvas2DRef.current,
+        // ใช้ getter เพื่อให้แน่ใจว่าได้ค่า .current ล่าสุดเสมอ
         get arCanvas() {
             return glRef.current?.domElement;
+        },
+        get cameraCanvas() {
+            return canvas2DRef.current;
         }
-    }), []); // Dependency array ว่างเปล่า เพราะเราจะให้มันอัปเดตเอง
+    }), []); // Dependency array ว่างเปล่าก็ยังใช้ได้ เพราะ getter จะถูกเรียกเมื่อมีการเข้าถึง
 
     const modelUrls = useMemo(() => {
         if (!selectedFlavor?.models) {
@@ -155,7 +157,11 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, onCameraReady }, ref) => {
     // State ใหม่เพื่อเก็บขนาดของวิดีโอ
     // const [videoSize, setVideoSize] = useState({ width: 1280, height: 720 });
 
+    // **[แก้ไข 3]** ทำให้ useEffect ทำงานใหม่เมื่อ cameraFacingMode เปลี่ยน
     useEffect(() => {
+        const videoElement = videoRef.current;
+        if (!videoElement) return;
+
         let camera = null;
         const faceMesh = new FaceMesh({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
@@ -163,15 +169,8 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, onCameraReady }, ref) => {
         faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
 
         faceMesh.onResults((results) => {
-            const videoElement = videoRef.current;
             const canvasElement = canvas2DRef.current;
             if (!canvasElement || !videoElement || videoElement.videoWidth === 0) return;
-
-            // เรียก onCameraReady เมื่อวาดเฟรมแรกได้สำเร็จ
-            if (onCameraReady && !canvasElement.cameraHasBeenReady) {
-                onCameraReady();
-                canvasElement.cameraHasBeenReady = true;
-            }
 
             const canvasCtx = canvasElement.getContext("2d");
             canvasElement.width = videoElement.videoWidth;
@@ -183,31 +182,31 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, onCameraReady }, ref) => {
 
             if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
                 landmarksRef.current = results.multiFaceLandmarks[0];
-
             } else {
                 landmarksRef.current = null;
             }
             canvasCtx.restore();
         });
 
-        if (videoRef.current) {
-            const camera = new Camera(videoRef.current, {
-                onFrame: async () => {
-                    await faceMesh.send({ image: videoRef.current });
-                },
-                width: 1280,
-                height: 720,
-            });
-            camera.start();
-        }
+        // สร้าง Camera object ใหม่เมื่อมีการเปลี่ยนโหมด
+        camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await faceMesh.send({ image: videoElement });
+            },
+            width: 1280,
+            height: 720,
+            // **[แก้ไข 3]** บอก MediaPipe ให้ใช้กล้องที่ถูกต้อง
+            facingMode: cameraFacingMode
+        });
+        camera.start();
 
-        // Cleanup function
+        // Cleanup function: สำคัญมากเมื่อ dependency เปลี่ยน
         return () => {
-            camera?.stop(); // หยุดกล้องเมื่อ component หายไป
+            camera?.stop();
+            faceMesh.close();
         };
 
-
-    }, [onCameraReady]);
+    }, [cameraFacingMode]); // <-- เพิ่ม cameraFacingMode ใน dependency array
 
     return (
         <div className="super-debug-container">
