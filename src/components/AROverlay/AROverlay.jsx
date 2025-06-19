@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import './AROverlay.css';
 import { AdvancedVideo, AdvancedImage } from '@cloudinary/react';
 import { FLAVORS } from '../../data/flavors';
@@ -15,7 +15,7 @@ import CameraUI from '../CameraUI/CameraUI';
 // Import Scene Components
 import ARSuperDebug from '../Debug/ARSuperDebug';
 
-const LOADING_DURATION = 3000; // 3 วินาที
+const LOADING_DURATION = 8000; // 3 วินาที
 
 /**
  AROverlay Component
@@ -33,6 +33,9 @@ const AROverlay = () => {
     // State สำหรับควบคุมหน้าโหลด: 'loading' หรือ 'ready'
     const [appState, setAppState] = useState('loading');
 
+    const arCanvasRef = useRef(null);
+    const cameraCanvasRef = useRef(null);
+
     // --- useEffect สำหรับนับเวลา ---
     useEffect(() => {
         // ตั้งเวลา 3 วินาที
@@ -46,7 +49,7 @@ const AROverlay = () => {
     }, []); // [] ทำงานแค่ครั้งเดียวตอน component ถูกสร้าง
 
     // --- DATA & LOGIC ---
-    // หากข้อมูลรสชาติจาก ID ที่เราเลือก
+    // ข้อมูลรสชาติจาก ID ที่เราเลือก
     const selectedFlavor = FLAVORS.find(flavor => flavor.id === selectedFlavorId);
 
     // สร้าง Cloudinary video object โดยใช้ useMemo
@@ -67,7 +70,7 @@ const AROverlay = () => {
         <div className="ar-overlay">
             {/* 
               Layer 1 & 2: AR Scene จัดการเองทั้งหมด
-              - เราส่ง `selectedFlavor` ทั้ง object ลงไป
+              - ส่ง `selectedFlavor` ทั้ง object ลงไป
               - และส่ง callback `onCameraReady` ไปด้วย
             */}
             <ARSuperDebug
@@ -76,7 +79,7 @@ const AROverlay = () => {
 
             {/* 
               Layer 2: UI 2D (วิดีโอ, ปุ่ม)
-              - เราจะให้มันแสดงผลทันที แต่จะถูก LoadingScreen บังไว้ก่อน
+              - แสดงผลทันที แต่จะถูก LoadingScreen บังไว้ก่อน
             */}
             <div className="ui-layer visible"> {/* ใส่ class 'visible' ไปเลย */}
                 <div className="presenter-video-container">
@@ -95,7 +98,10 @@ const AROverlay = () => {
                     selectedFlavorId={selectedFlavorId}
                     onSelectFlavor={setSelectedFlavorId}
                 />
-                <CameraUI />
+                <CameraUI
+                    arCanvasRef={arCanvasRef}
+                    cameraCanvasRef={cameraCanvasRef}
+                />
             </div>
 
             {/* 

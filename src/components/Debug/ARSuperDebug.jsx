@@ -1,9 +1,10 @@
-import React, { useRef, useEffect, Suspense, useState, useMemo } from "react";
+import React, { useRef, useEffect, Suspense, useMemo, forwardRef, useImperativeHandle } from "react";
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useGLTF, Preload } from '@react-three/drei';
 import { FaceMesh } from "@mediapipe/face_mesh";
 import { Camera } from "@mediapipe/camera_utils";
+
 import './ARSuperDebug.css';
 
 // ====================================================================
@@ -109,22 +110,31 @@ function FaceAnchor({ landmarksRef, modelUrls }) {
     return (
         <group ref={groupRef} visible={false}>
             {/* 5. Render โมเดลทั้ง 3 ตัวเป็น child ของ group */}
-            <primitive object={bowlModel.clone()} rotation={[Math.PI / 1, 0, 0]} scale={0.5} position={[0, 0.3, -0.2]} />
-            <primitive object={chopstickModel} rotation={[Math.PI / 1, 0, 0]} scale={0.5} position={[0, 0.3, -0.2]} />
-            <primitive object={propModel} rotation={[Math.PI / 1, 0, 0]} scale={0.5} position={[0, 0.3, -0.2]} />
+            <primitive object={bowlModel.clone()} rotation={[Math.PI / 1, 0, 0]} scale={1.35} position={[0, 2.2, 0]} />
+            <primitive object={chopstickModel} rotation={[Math.PI / 1, 0, 0]} scale={1.35} position={[0, 2.2, 0]} />
+            <primitive object={propModel} rotation={[Math.PI / 1, 0, 0]} scale={1.35} position={[0, 2.2, 0]} />
 
         </group>
     );
 }
 
-
 // ====================================================================
 // Component หลักที่รวมทุกอย่างเข้าด้วยกัน
 // ====================================================================
-const ARSuperDebug = ({ selectedFlavor }) => {
+const ARSuperDebug = forwardRef(({ selectedFlavor, onCameraReady }, ref) => {
     const videoRef = useRef(null);
     const canvas2DRef = useRef(null);
     const landmarksRef = useRef(null);
+
+    const glRef = useRef(null); // Ref ใหม่สำหรับเก็บ WebGL Renderer
+
+    useImperativeHandle(ref, () => ({
+        // Parent (AROverlay) จะสามารถเข้าถึงค่าเหล่านี้ได้ผ่าน ref.current
+        cameraCanvas: canvas2DRef.current,
+        get arCanvas() {
+            return glRef.current?.domElement;
+        }
+    }), []); // Dependency array ว่างเปล่า เพราะเราจะให้มันอัปเดตเอง
 
     const modelUrls = useMemo(() => {
         if (!selectedFlavor?.models) {
@@ -146,6 +156,7 @@ const ARSuperDebug = ({ selectedFlavor }) => {
     // const [videoSize, setVideoSize] = useState({ width: 1280, height: 720 });
 
     useEffect(() => {
+        let camera = null;
         const faceMesh = new FaceMesh({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
         });
@@ -155,6 +166,12 @@ const ARSuperDebug = ({ selectedFlavor }) => {
             const videoElement = videoRef.current;
             const canvasElement = canvas2DRef.current;
             if (!canvasElement || !videoElement || videoElement.videoWidth === 0) return;
+
+            // เรียก onCameraReady เมื่อวาดเฟรมแรกได้สำเร็จ
+            if (onCameraReady && !canvasElement.cameraHasBeenReady) {
+                onCameraReady();
+                canvasElement.cameraHasBeenReady = true;
+            }
 
             const canvasCtx = canvasElement.getContext("2d");
             canvasElement.width = videoElement.videoWidth;
@@ -183,15 +200,23 @@ const ARSuperDebug = ({ selectedFlavor }) => {
             });
             camera.start();
         }
-    }, []);
+
+        // Cleanup function
+        return () => {
+            camera?.stop(); // หยุดกล้องเมื่อ component หายไป
+        };
+
+
+    }, [onCameraReady]);
 
     return (
         <div className="super-debug-container">
             <video ref={videoRef} className="input_video" autoPlay playsInline style={{ display: 'none' }} />
             <canvas ref={canvas2DRef} className="output_canvas_debug" />
 
-            <Canvas className="ar-canvas-3d-debug">
-
+            <Canvas className="ar-canvas-3d-debug"
+                onCreated={(state) => { glRef.current = state.gl; }}
+                gl={{ preserveDrawingBuffer: true }}>
                 <ambientLight intensity={1.2} />
                 <directionalLight position={[0, 5, 5]} intensity={1.8} />
                 <Suspense fallback={null}>
@@ -204,6 +229,6 @@ const ARSuperDebug = ({ selectedFlavor }) => {
             </Canvas>
         </div>
     );
-};
+});
 
 export default ARSuperDebug;
