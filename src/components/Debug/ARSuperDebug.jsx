@@ -137,208 +137,135 @@ function HeadsUpDisplay({ selectedFlavor }) {
         </group>
     );
 }
-// ====================================================================
-// Component 3D สำหรับโมเดล (เวอร์ชันใช้ Raycaster เพื่อความแม่นยำ)
+// Component 3D สำหรับโมเดลทั้งหมด (เวอร์ชันรวมและปรับพฤติกรรม)
 // ====================================================================
 function FaceAnchor({ landmarksRef, modelUrls }) {
-    const groupRef = useRef();
-    const { camera } = useThree();
+    // [แก้ไข] สร้าง Ref สำหรับแต่ละ Group เพื่อควบคุมแยกกัน
+    const groupRef = useRef(); // Group สำหรับชามและ prop ที่เคลื่อนที่ตามคาง
+    const chopstickGroupRef = useRef(); // Group สำหรับตะเกียบที่ตำแหน่งคงที่
+
+    const { camera, viewport } = useThree();
 
     // --- 1. โหลดโมเดลทั้งหมด ---
     const { scene: bowlModel } = useGLTF(modelUrls.bowl);
-    const { scene: chopstickModel } = useGLTF(modelUrls.chopstick);
     const { scene: propModel, animations: propAnims } = useGLTF(modelUrls.prop);
-
-    // --- 2. ตั้งค่า Animation Mixer ---
-    const mixer = useMemo(() => new THREE.AnimationMixer(propModel), [propModel]);
-    const actions = useMemo(() => {
-        if (propAnims && propAnims.length > 0) {
-            const action = mixer.clipAction(propAnims[0]);
-            action.play();
-            action.paused = true;
-            return { main: action };
-        }
-        return { main: null };
-    }, [propAnims, mixer]);
-
-    const lastMouthState = useRef("Close");
-
-    useFrame((state, delta) => {
-        const landmarks = landmarksRef.current;
-        if (!landmarks || !groupRef.current) {
-            if (groupRef.current) groupRef.current.visible = false;
-            return;
-        }
-
-        const anchorPoint = landmarks[152]; // ยึดกับปลายคาง
-        if (!anchorPoint) {
-            groupRef.current.visible = false;
-            return;
-        }
-
-        groupRef.current.visible = true;
-
-        // --- คำนวณตำแหน่งที่ถูกต้อง 100% ---
-        const target = new THREE.Vector3();
-
-        // --- 1. คำนวณตำแหน่งด้วย Raycaster (แม่นยำที่สุด) ---
-        // แปลงพิกัด landmark (0-1) ให้อยู่ใน Screen Space (-1 to 1)
-        // **สำคัญ: พลิกแกน X ที่นี่ (-anchorPoint.x) เพื่อให้ตรงกับการพลิกกระจกของภาพ**
-        const screenX = (-anchorPoint.x + 0.5) * 2;
-        const screenY = -(anchorPoint.y - 0.5) * 2;
-
-        state.raycaster.setFromCamera({ x: screenX, y: screenY }, camera);
-        state.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), target);
-        groupRef.current.position.lerp(target, 0.5);
-
-        // --- 2. คำนวณการหมุน (Rotation) - ใช้ Logic เดิมที่แม่นยำ ---
-        const forehead = new THREE.Vector3(landmarks[10].x, landmarks[10].y, landmarks[10].z);
-        const chin = new THREE.Vector3(landmarks[152].x, landmarks[152].y, landmarks[152].z);
-        const leftCheek = new THREE.Vector3(landmarks[234].x, landmarks[234].y, landmarks[234].z);
-        const rightCheek = new THREE.Vector3(landmarks[454].x, landmarks[454].y, landmarks[454].z);
-
-        const yAxis = new THREE.Vector3().subVectors(forehead, chin).normalize();
-        const xAxis = new THREE.Vector3().subVectors(rightCheek, leftCheek).normalize();
-        const zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
-
-        const rotationMatrix = new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis);
-        const quaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
-
-        groupRef.current.quaternion.slerp(quaternion, 0.5);
-
-        // --- 3. ตรวจจับการอ้าปากและควบคุมอนิเมชัน ---
-        const upperLip = landmarks[13];
-        const lowerLip = landmarks[14];
-
-        if (upperLip && lowerLip && actions.main) {
-            const mouthOpening = Math.abs(lowerLip.y - upperLip.y) * 1000;
-            const MOUTH_OPEN_THRESHOLD = 15;
-            const currentMouthState = mouthOpening > MOUTH_OPEN_THRESHOLD ? "Open" : "Close";
-
-            if (currentMouthState !== lastMouthState.current) {
-                console.log(`Mouth State: ${currentMouthState}`);
-                lastMouthState.current = currentMouthState;
-
-                const shouldBeVisible = currentMouthState === "Open";
-                // ควบคุมการมองเห็นของโมเดล
-                chopstickModel.visible = shouldBeVisible;
-                propModel.visible = shouldBeVisible;
-                actions.main.paused = !shouldBeVisible;
-            }
-        }
-
-        // อัปเดต Mixer ในทุกๆ เฟรม
-        mixer.update(delta);
-    });
-
-    // 4. ตั้งค่าเริ่มต้นให้โมเดลที่ต้องซ่อน มองไม่เห็นก่อน
-    useEffect(() => {
-        chopstickModel.visible = false;
-        propModel.visible = false;
-    }, [chopstickModel, propModel]);
-
-    return (
-        <group ref={groupRef} visible={false}>
-            {/* 5. Render โมเดลทั้ง 3 ตัวเป็น child ของ group */}
-            <primitive object={bowlModel.clone()} rotation={[Math.PI / 1, 0, 0]} scale={1.35} position={[0, 2.2, 0]} />
-            <primitive object={chopstickModel} rotation={[Math.PI / 1, 0, 0]} scale={1.35} position={[0, 2.2, 0]} />
-            <primitive object={propModel} rotation={[Math.PI / 1, 0, 0]} scale={1.35} position={[0, 2.2, 0]} />
-
-        </group>
-    );
-}
-
-// ====================================================================
-// Componentใหม่สำหรับ "ตะเกียบ" โดยเฉพาะ
-// ====================================================================
-function ChopstickAnchor({ landmarksRef, modelUrls }) {
-    const groupRef = useRef();
-    const { viewport } = useThree(); // ใช้ viewport สำหรับการจัดตำแหน่ง
-
-    // --- 1. โหลดโมเดลตะเกียบและอนิเมชัน ---
+    // [แก้ไข] โหลดตะเกียบและอนิเมชันของมันที่นี่
     const { scene: chopstickModel, animations: chopstickAnims } = useGLTF(modelUrls.chopstick);
 
-    // --- 2. ตั้งค่า Animation Mixer สำหรับตะเกียบ ---
-    const mixer = useMemo(() => new THREE.AnimationMixer(chopstickModel), [chopstickModel]);
-    const actions = useMemo(() => {
-        if (chopstickAnims && chopstickAnims.length > 0) {
-            const action = mixer.clipAction(chopstickAnims[0]);
+    // --- 2. ตั้งค่า Animation Mixer แยกกันสำหรับแต่ละโมเดลที่มีอนิเมชัน ---
+    const propMixer = useMemo(() => new THREE.AnimationMixer(propModel), [propModel]);
+    const propActions = useMemo(() => {
+        if (propAnims && propAnims.length > 0) {
+            const action = propMixer.clipAction(propAnims[0]);
             action.play();
             action.paused = true;
             return { main: action };
         }
         return { main: null };
-    }, [chopstickAnims, mixer]);
+    }, [propAnims, propMixer]);
+
+    const chopstickMixer = useMemo(() => new THREE.AnimationMixer(chopstickModel), [chopstickModel]);
+    const chopstickActions = useMemo(() => {
+        if (chopstickAnims && chopstickAnims.length > 0) {
+            const action = chopstickMixer.clipAction(chopstickAnims[0]);
+            action.play();
+            action.paused = true;
+            return { main: action };
+        }
+        return { main: null };
+    }, [chopstickAnims, chopstickMixer]);
 
     const lastMouthState = useRef("Close");
 
-    // --- 3. ตั้งค่าเริ่มต้นให้มองไม่เห็น ---
+    // 3. ตั้งค่าเริ่มต้นให้ propModel มองไม่เห็น
     useEffect(() => {
-        chopstickModel.visible = false;
-    }, [chopstickModel]);
+        propModel.visible = false;
+    }, [propModel]);
+
 
     useFrame((state, delta) => {
         const landmarks = landmarksRef.current;
-        if (!landmarks || !groupRef.current) {
+        if (!landmarks || !groupRef.current || !chopstickGroupRef.current) {
             if (groupRef.current) groupRef.current.visible = false;
+            if (chopstickGroupRef.current) chopstickGroupRef.current.visible = false;
             return;
         }
 
+        // เมื่อเจอใบหน้า ให้แสดงผลทั้งสอง Group
         groupRef.current.visible = true;
+        chopstickGroupRef.current.visible = true;
 
-        // --- 4. คำนวณการหมุนแบบ "หน่วง" ---
+        // --- ส่วนที่ 1: ควบคุม Group ที่ตามคาง (ชาม, prop) ---
+        const anchorPoint = landmarks[152];
+        if (anchorPoint) {
+            const target = new THREE.Vector3();
+            const screenX = (-anchorPoint.x + 0.5) * 2;
+            const screenY = -(anchorPoint.y - 0.5) * 2;
+            state.raycaster.setFromCamera({ x: screenX, y: screenY }, camera);
+            state.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), target);
+            groupRef.current.position.lerp(target, 0.5);
+        }
+
+        // --- ส่วนที่ 2: คำนวณการหมุนของใบหน้า (ใช้ร่วมกัน) ---
         const forehead = new THREE.Vector3(landmarks[10].x, landmarks[10].y, landmarks[10].z);
         const chin = new THREE.Vector3(landmarks[152].x, landmarks[152].y, landmarks[152].z);
         const leftCheek = new THREE.Vector3(landmarks[234].x, landmarks[234].y, landmarks[234].z);
         const rightCheek = new THREE.Vector3(landmarks[454].x, landmarks[454].y, landmarks[454].z);
-
         const yAxis = new THREE.Vector3().subVectors(forehead, chin).normalize();
         const xAxis = new THREE.Vector3().subVectors(rightCheek, leftCheek).normalize();
         const zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
-
         const rotationMatrix = new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis);
         const faceQuaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
 
-        // [หัวใจหลัก] แทนที่จะหมุนตาม 100%, เราจะ slerp จากมุมมองปกติ (Identity)
-        // ไปยังมุมของใบหน้าแค่เล็กน้อย (เช่น 20% หรือ 0.2)
-        const DAMPING_FACTOR = 0.2;
-        const initialQuaternion = new THREE.Quaternion(); // Quaternion ที่ไม่หมุนเลย
-        groupRef.current.quaternion.slerp(
-            initialQuaternion.clone().slerp(faceQuaternion, DAMPING_FACTOR),
-            0.5 // ทำให้การเคลื่อนไหวสมูท
-        );
+        // หมุน Group ที่ตามคางแบบ 100%
+        groupRef.current.quaternion.slerp(faceQuaternion, 0.5);
 
-
-        // --- 5. ตรวจจับการอ้าปากและควบคุมอนิเมชัน (เหมือนเดิม) ---
+        // --- ส่วนที่ 3: ตรวจจับการอ้าปากและควบคุมอนิเมชันแยกกัน ---
         const upperLip = landmarks[13];
         const lowerLip = landmarks[14];
-
-        if (upperLip && lowerLip && actions.main) {
+        if (upperLip && lowerLip) {
             const mouthOpening = Math.abs(lowerLip.y - upperLip.y) * 1000;
             const MOUTH_OPEN_THRESHOLD = 15;
             const currentMouthState = mouthOpening > MOUTH_OPEN_THRESHOLD ? "Open" : "Close";
 
             if (currentMouthState !== lastMouthState.current) {
                 lastMouthState.current = currentMouthState;
-                const shouldBeVisible = currentMouthState === "Open";
-                chopstickModel.visible = shouldBeVisible; // ควบคุมการมองเห็นของตะเกียบ
-                actions.main.paused = !shouldBeVisible;
+                const isMouthOpen = currentMouthState === "Open";
+
+                // ควบคุม prop ที่ปาก (ทั้งการมองเห็นและอนิเมชัน)
+                if (propActions.main) {
+                    propModel.visible = isMouthOpen;
+                    propActions.main.paused = !isMouthOpen;
+                }
+                // ควบคุมตะเกียบ (เฉพาะอนิเมชัน)
+                if (chopstickActions.main) {
+                    chopstickActions.main.paused = !isMouthOpen;
+                }
             }
         }
 
-        mixer.update(delta);
+        // อัปเดต Mixer ทั้งสองตัว
+        if (propMixer) propMixer.update(delta);
+        if (chopstickMixer) chopstickMixer.update(delta);
     });
 
-    // --- 6. Render โมเดลพร้อมกำหนดตำแหน่งและขนาด ---
-    // จัดตำแหน่งให้อยู่มุมขวาล่างของจอ โดยอ้างอิงจาก viewport
-    const positionX = viewport.width / 2 - 1.5;
-    const positionY = -viewport.height / 2 + 1.5;
-    const scale = 2.5; // ปรับขนาดตามความเหมาะสม
+    // คำนวณตำแหน่งและขนาดคงที่ของตะเกียบ
+    const chopstickScale = 1;
 
+    // [แก้ไข] JSX return สอง Group ที่อยู่เคียงกันโดยใช้ Fragment (<>)
     return (
-        <group ref={groupRef} position={[positionX, positionY, -2]} scale={scale}>
-            <primitive object={chopstickModel} rotation={[Math.PI / 1, 0, 0]} />
-        </group>
+        <>
+            {/* Group ที่ 1: สำหรับชามและ prop ที่เคลื่อนที่และหมุนตามคาง */}
+            <group ref={groupRef} visible={false}>
+                <primitive object={bowlModel.clone()} rotation={[Math.PI / 1, 0, 0]} scale={1.35} position={[0, 2.2, 0]} />
+                <primitive object={propModel} rotation={[Math.PI / 1, 0, 0]} scale={1.35} position={[0, 2.2, 0]} />
+            </group>
+
+            {/* Group ที่ 2: สำหรับตะเกียบที่มีตำแหน่งคงที่ แต่หมุนเล็กน้อย */}
+            <group ref={chopstickGroupRef} position={[0, -2.5, 0]} scale={chopstickScale} visible={false}>
+                <primitive object={chopstickModel} />
+            </group>
+        </>
     );
 }
 
@@ -443,7 +370,7 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, cameraFacingMode }, ref) => {
                 <ambientLight intensity={1.2} />
                 <directionalLight position={[0, 5, 5]} intensity={1.8} />
                 <Suspense fallback={null}>
-                    {/* ส่งขนาดของวิดีโอเข้าไปด้วย */}
+                    {/* [แก้ไข] เรียกใช้แค่ FaceAnchor ตัวเดียว */}
                     <FaceAnchor
                         landmarksRef={landmarksRef} modelUrls={modelUrls}
                     />
