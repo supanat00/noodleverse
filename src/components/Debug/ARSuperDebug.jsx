@@ -1,11 +1,97 @@
 import React, { useRef, useEffect, Suspense, useMemo, forwardRef, useImperativeHandle } from "react";
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { useGLTF, Preload } from '@react-three/drei';
+import { useGLTF, Preload, useVideoTexture, useTexture } from '@react-three/drei';
 import { FaceMesh } from "@mediapipe/face_mesh";
 import { Camera } from "@mediapipe/camera_utils";
 
 import './ARSuperDebug.css';
+
+/**
+ * HeadsUpDisplay (HUD) Component
+ * สร้าง UI ของวิดีโอพรีเซนเตอร์และโลโก้ขึ้นมาใหม่ในฉาก 3D
+ * โดยเลียนแบบการจัดวางจาก CSS เดิมให้แม่นยำที่สุด
+ */
+function HeadsUpDisplay({ selectedFlavor }) {
+    // ดึง 'viewport' (ขนาดที่เห็นในหน่วย 3D) และ 'size' (ขนาด canvas เป็น pixel) มาใช้
+    const { viewport, size } = useThree();
+
+    // --- 1. โหลด Textures ---
+    const logoUrl = '/assets/images/mama-logo.webp';
+    const videoUrl = selectedFlavor?.videoPublicId || '';
+
+    const logoTexture = useTexture(logoUrl);
+    // ตรวจสอบให้แน่ใจว่า videoUrl ไม่ใช่ค่าว่างก่อนเรียกใช้ useVideoTexture
+    const videoTexture = useVideoTexture(videoUrl, {
+        muted: true, loop: true, start: true, crossOrigin: "anonymous",
+    });
+
+    // ====================================================================
+    // --- 2. [หัวใจหลัก] แปลงค่าจาก CSS (px, rem) เป็นหน่วย 3D ---
+    // ====================================================================
+
+    // ค่าคงที่จากไฟล์ AROverlay.css
+    const remToPx = 16; // ค่ามาตรฐานของ 1rem คือ 16px
+    const topMarginInRem = 2; // top: 2rem;
+    const containerMaxWidthInPx = 450; // max-width: 450px;
+    const containerWidthPercent = 0.90; // width: 90%;
+    const containerAspectRatio = 3 / 2; // aspect-ratio: 3 / 2;
+    const logoWidthInPx = 60; // width: 60px;
+    const logoMarginInPx = 15; // top: 15px; left: 15px;
+
+    // คำนวณอัตราส่วนการแปลง pixel (ของ canvas) ไปเป็นหน่วย 3D (world unit)
+    // นี่คือกุญแจสำคัญที่ทำให้เราเทียบขนาดได้
+    const pxToWorldRatio = viewport.width / size.width;
+
+    // --- คำนวณความกว้างของ Container (วิดีโอ) ---
+    // 1. ความกว้างแบบ responsive (90% ของ viewport) ในหน่วย 3D
+    const responsiveWidth = viewport.width * containerWidthPercent;
+    // 2. ความกว้างสูงสุด (450px) ในหน่วย 3D
+    const maxWidthInWorld = containerMaxWidthInPx * pxToWorldRatio;
+    // 3. เลือกค่าที่น้อยกว่ามาใช้ (นี่คือ logic ของ `max-width` ใน CSS)
+    const containerWidth = Math.min(responsiveWidth, maxWidthInWorld);
+
+    // --- คำนวณความสูงของ Container จาก Aspect Ratio ---
+    const containerHeight = containerWidth / containerAspectRatio;
+
+    // --- คำนวณตำแหน่งของ Container (กึ่งกลางบน) ---
+    const containerX = 0; // CSS: left: 50%, transform: translateX(-50%) คือกึ่งกลางแนวนอน
+    // คำนวณระยะห่างจากขอบบน (top: 2rem)
+    const topMarginInWorld = (topMarginInRem * remToPx) * pxToWorldRatio;
+    // ตำแหน่ง Y คือ ขอบบนสุดของจอ (viewport.height / 2)
+    // ลบด้วยระยะห่างที่คำนวณไว้
+    // และลบอีกครึ่งหนึ่งของความสูง container เพื่อให้ขอบบนของ container ตรงตำแหน่ง
+    const containerY = (viewport.height / 2) - topMarginInWorld - (containerHeight / 2);
+
+    // --- คำนวณขนาดและตำแหน่งของ Logo (อ้างอิงจาก Container) ---
+    const logoWidth = logoWidthInPx * pxToWorldRatio;
+    const logoHeight = logoWidth; // สมมติว่าโลโก้เป็นสี่เหลี่ยมจัตุรัส
+    const logoMargin = logoMarginInPx * pxToWorldRatio;
+
+    // ตำแหน่งโลโก้จะสัมพันธ์กับจุดกึ่งกลางของ Container (ซึ่งตอนนี้อยู่ที่ 0,0)
+    // X: ขอบซ้ายสุด (-containerWidth/2) + ระยะห่าง (logoMargin) + ครึ่งนึงของความกว้างโลโก้
+    const logoX = -containerWidth / 2 + logoMargin + (logoWidth / 2);
+    // Y: ขอบบนสุด (+containerHeight/2) - ระยะห่าง (logoMargin) - ครึ่งนึงของความสูงโลโก้
+    const logoY = containerHeight / 2 - logoMargin - (logoHeight / 2);
+
+    return (
+        // Group หลักของ HUD ทั้งหมด จะถูกจัดตำแหน่งตามที่คำนวณไว้
+        <group position={[containerX, containerY, -0.1]}>
+            {/* Plane สำหรับวิดีโอ (พื้นหลังของ HUD) */}
+            <mesh>
+                <planeGeometry args={[containerWidth, containerHeight]} />
+                <meshBasicMaterial map={videoTexture} transparent />
+            </mesh>
+
+            {/* Plane สำหรับโลโก้ (อยู่ข้างหน้าวิดีโอเล็กน้อย z=0.01 เพื่อกันภาพซ้อน) */}
+            <mesh position={[logoX, logoY, 0.01]}>
+                <planeGeometry args={[logoWidth, logoHeight]} />
+                <meshBasicMaterial map={logoTexture} transparent />
+            </mesh>
+        </group>
+    );
+}
+
 
 // ====================================================================
 // Component 3D สำหรับโมเดล (เวอร์ชันใช้ Raycaster เพื่อความแม่นยำ)
@@ -221,8 +307,9 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, cameraFacingMode }, ref) => {
                 <Suspense fallback={null}>
                     {/* ส่งขนาดของวิดีโอเข้าไปด้วย */}
                     <FaceAnchor
-                        landmarksRef={landmarksRef} selectedFlavor={selectedFlavor} modelUrls={modelUrls}
+                        landmarksRef={landmarksRef} modelUrls={modelUrls}
                     />
+                    <HeadsUpDisplay selectedFlavor={selectedFlavor} />
                     <Preload all />
                 </Suspense>
             </Canvas>

@@ -1,11 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import './AROverlay.css';
-import { AdvancedVideo, AdvancedImage } from '@cloudinary/react';
 import { FLAVORS } from '../../data/flavors';
-import { cld } from '../../utils/cloudinary';
-import { quality } from "@cloudinary/url-gen/actions/delivery";
-import { videoCodec } from "@cloudinary/url-gen/actions/transcode";
-import { auto } from "@cloudinary/url-gen/qualifiers/videoCodec";
 
 // Import UI Components
 import FlavorSelector from '../FlavorSelector/FlavorSelector';
@@ -32,10 +27,15 @@ const AROverlay = () => {
 
     // **[แก้ไข 1]** สร้าง ref ตัวเดียวเพื่อรับ handles จาก ARSuperDebug
     const arSystemRef = useRef(null);
+    const presenterContainerRef = useRef(null);
+
+    // **[หัวใจของการแก้ไข]** State เพื่อรอให้ Ref พร้อม
+    const [uiReady, setUiReady] = useState(false);
 
     // **[แก้ไข 3 - เพิ่ม]** จัดการ State ของกล้องที่นี่ (Lifting State Up)
     const [cameraFacingMode, setCameraFacingMode] = useState('user'); // 'user' หรือ 'environment'
 
+    // --- EFFECTS ---
     useEffect(() => {
         const timer = setTimeout(() => {
             setAppState('ready');
@@ -43,23 +43,35 @@ const AROverlay = () => {
         return () => clearTimeout(timer);
     }, []);
 
+    // Effect นี้จะทำงานหลังจากที่ Component ถูก Mount และ div ถูกผูกกับ Ref แล้ว
+    useEffect(() => {
+        if (presenterContainerRef.current) {
+            // เมื่อ Ref พร้อม, ให้ตั้ง State เพื่อบังคับให้ re-render
+            setUiReady(true);
+        }
+    }, []); // dependency ว่างเปล่า = ทำงานครั้งเดียวหลัง Mount
+
     // --- DATA & LOGIC ---
     // ข้อมูลรสชาติจาก ID ที่เราเลือก
     const selectedFlavor = FLAVORS.find(flavor => flavor.id === selectedFlavorId);
 
     // สร้าง Cloudinary video object โดยใช้ useMemo
-    const cldVideo = useMemo(() => {
-        if (!selectedFlavor?.videoPublicId) return null;
-        return cld.video(selectedFlavor.videoPublicId)
-            .delivery(quality('auto'))
-            .transcode(videoCodec(auto()));
+    const videoUrl = useMemo(() => {
+        if (!selectedFlavor?.id) return null;
+        // สร้าง path ไปยังไฟล์วิดีโอในโฟลเดอร์ public
+        // **สำคัญ:** แก้ไขนามสกุลไฟล์ (.webp) ถ้าจำเป็น
+        return `${selectedFlavor.videoPublicId}`;
     }, [selectedFlavor]);
 
-    // สร้าง Cloudinary image object สำหรับโลโก้
-    const cldLogo = useMemo(() => {
-        return cld.image('TKO/MAMAOK/images/mama-logo.webp').delivery(quality('auto'));
-    }, []);
+    // const cldVideo = useMemo(() => {
+    //     if (!selectedFlavor?.videoPublicId) return null;
+    //     return cld.video(selectedFlavor.videoPublicId)
+    //         .delivery(quality('auto'))
+    //         .transcode(videoCodec(auto()));
+    // }, [selectedFlavor]);
 
+    // สร้าง Cloudinary image object สำหรับโลโก้
+    const logoUrl = '/assets/images/mama-logo.webp';
 
     return (
         <div className="ar-overlay">
@@ -79,14 +91,25 @@ const AROverlay = () => {
               - แสดงผลทันที แต่จะถูก LoadingScreen บังไว้ก่อน
             */}
             <div className="ui-layer visible"> {/* ใส่ class 'visible' ไปเลย */}
-                <div className="presenter-video-container">
-                    <AdvancedImage cldImg={cldLogo} alt="Client Logo" className="client-logo" />
-                    {cldVideo && (
-                        <AdvancedVideo
-                            key={selectedFlavor.id}
-                            cldVid={cldVideo}
+                <div ref={presenterContainerRef} className="presenter-video-container">
+                    <img
+                        src={logoUrl}
+                        alt="Client Logo"
+                        className="client-logo"
+                        // **สำคัญมาก:** ยังคงต้องใส่ crossOrigin เพื่อให้ html2canvas ทำงานได้
+                        crossOrigin="anonymous"
+                    />
+                    {videoUrl && (
+                        <video
+                            key={selectedFlavor.id} // key ยังคงสำคัญเพื่อให้ React สร้าง element ใหม่เมื่อรสชาติเปลี่ยน
+                            src={videoUrl}
                             className="presenter-video"
-                            autoPlay muted loop playsInline
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                            // **สำคัญมาก:** ยังคงต้องใส่ crossOrigin เพื่อให้ html2canvas ทำงานได้
+                            crossOrigin="anonymous"
                         />
                     )}
                 </div>
@@ -95,11 +118,14 @@ const AROverlay = () => {
                     selectedFlavorId={selectedFlavorId}
                     onSelectFlavor={setSelectedFlavorId}
                 />
-                <CameraUI
-                    arSystemRef={arSystemRef}
-                    cameraFacingMode={cameraFacingMode}
-                    onSwitchCamera={setCameraFacingMode}
-                />
+                {uiReady && (
+                    <CameraUI
+                        arSystemRef={arSystemRef}
+                        presenterContainer={presenterContainerRef.current} // <-- ส่ง Element, ไม่ใช่ Ref Object
+                        cameraFacingMode={cameraFacingMode}
+                        onSwitchCamera={setCameraFacingMode}
+                    />
+                )}
             </div>
 
             {/* 
