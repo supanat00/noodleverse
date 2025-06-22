@@ -37,6 +37,7 @@ const AROverlay = () => {
             <ARSuperDebug
                 ref={arSystemRef}
                 selectedFlavor={selectedFlavor}
+                allFlavors={FLAVORS}
                 cameraFacingMode={cameraFacingMode}
             />
             <div className="ui-layer visible">

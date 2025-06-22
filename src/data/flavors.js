@@ -16,7 +16,7 @@ import presenter03 from "/assets/videos/presenter-03.webm";
 export const FLAVORS = [
   {
     id: "gochucheese",
-    name: "รสโกชูชีส",
+    name: "รสโคชูชีส",
     iconSrc: iconGochucheese,
     videoPublicId: presenter03,
     models: {
@@ -24,6 +24,24 @@ export const FLAVORS = [
       chopstick:
         "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138306/TKO/MAMAOK/models/gochucheese/gochucheese_fork.glb",
       prop: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138307/TKO/MAMAOK/models/gochucheese/gochucheese_prop.glb",
+    },
+    adjustments: {
+      bowl: {
+        position: [0, 5, 0], // [x, y, z] ออฟเซ็ตจากจุดยึด (คาง)
+        rotation: [Math.PI, 0, 0], // [x, y, z] การหมุน (เรเดียน)
+        scale: 2.5, // ขนาด (ตัวเลขเดียวสำหรับทุกแกน)
+        customTexture: "/assets/textures/cup_tex.png",
+      },
+      prop: {
+        position: [0, 5, 0], // ขยับ prop ขึ้นมานิดหน่อยและมาข้างหน้า
+        rotation: [Math.PI, 0, 0],
+        scale: 2.5,
+      },
+      chopstick: {
+        position: [0, -9, 0], // ตำแหน่งคงที่บนหน้าจอ
+        rotation: [0, 0, 0],
+        scale: 3,
+      },
     },
   },
   {
@@ -37,6 +55,23 @@ export const FLAVORS = [
         "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138413/TKO/MAMAOK/models/kimchi/kimchi_chopstick.glb",
       prop: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138414/TKO/MAMAOK/models/kimchi/kimchi_prop.glb",
     },
+    adjustments: {
+      bowl: {
+        position: [0, 2.2, 0], // [x, y, z] ออฟเซ็ตจากจุดยึด (คาง)
+        rotation: [Math.PI, 0, 0], // [x, y, z] การหมุน (เรเดียน)
+        scale: 1.35, // ขนาด (ตัวเลขเดียวสำหรับทุกแกน)
+      },
+      prop: {
+        position: [0, 2.3, 0.1], // ขยับ prop ขึ้นมานิดหน่อยและมาข้างหน้า
+        rotation: [Math.PI, 0, 0],
+        scale: 1.35,
+      },
+      chopstick: {
+        position: [0.65, -3.5, 0], // ตำแหน่งคงที่บนหน้าจอ
+        rotation: [0, 0, 0],
+        scale: 1.35,
+      },
+    },
   },
   {
     id: "tonkotsu",
@@ -48,6 +83,23 @@ export const FLAVORS = [
       chopstick:
         "https://res.cloudinary.com/da8eemrq8/image/upload/v1750137830/TKO/MAMAOK/models/tonkotsu/tonkotsu_chopstick.glb",
       prop: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750137830/TKO/MAMAOK/models/tonkotsu/tonkotsu_prop.glb",
+    },
+    adjustments: {
+      bowl: {
+        position: [0, 2.2, 0], // [x, y, z] ออฟเซ็ตจากจุดยึด (คาง)
+        rotation: [Math.PI, 0, 0], // [x, y, z] การหมุน (เรเดียน)
+        scale: 1.35, // ขนาด (ตัวเลขเดียวสำหรับทุกแกน)
+      },
+      prop: {
+        position: [0, 2.3, 0.1], // ขยับ prop ขึ้นมานิดหน่อยและมาข้างหน้า
+        rotation: [Math.PI, 0, 0],
+        scale: 1.35,
+      },
+      chopstick: {
+        position: [-1.75, -4.5, 0], // ตำแหน่งคงที่บนหน้าจอ
+        rotation: [0, 0, 0],
+        scale: 1.35,
+      },
     },
   },
 ];

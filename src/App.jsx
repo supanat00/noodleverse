@@ -4,8 +4,13 @@ import './App.css';
 // import AROverlay from './components/AROverlay/AROverlay'; // <--- เอา import ตรงนี้ออก
 import LoadingScreen from './components/LoadingScreen/LoadingScreen';
 import { FLAVORS } from './data/flavors';
-import { preloadGLTF } from './utils/preloadGLTF';
+
+// import preload modules
 import mediaPipeService from './services/mediaPipeService'
+
+import { preloadGLTF } from './utils/preloadGLTF';
+import { preloadVideo } from './utils/preloadVideo';
+
 
 // ใช้ React.lazy เพื่อบอกว่า "เดี๋ยวค่อยโหลด component นี้ เมื่อถึงเวลาต้องใช้"
 // โค้ดของ AROverlay จะถูกแยกออกไปเป็นไฟล์ .js อีกไฟล์ (chunk)
@@ -17,23 +22,26 @@ function App() {
   useEffect(() => {
     async function preloadAssets() {
       try {
-        console.log("Preloading all assets...");
-        const modelUrls = FLAVORS.flatMap(flavor => Object.values(flavor.models));
+        console.log("Preloading all assets (Models, MediaPipe, Videos)...");
 
-        // 2. สร้าง Promise list
+        // (2) ดึง URL ของทุกอย่างที่ต้องโหลด
+        const modelUrls = FLAVORS.flatMap(flavor => Object.values(flavor.models));
+        const videoUrls = FLAVORS.map(flavor => flavor.videoPublicId).filter(Boolean); // .filter(Boolean) เพื่อกรองค่า null/undefined ออก
+
+        // (3) สร้าง list ของ Promises ทั้งหมด
         const assetPromises = [
-          ...modelUrls.map(url => preloadGLTF(url)), // โหลดโมเดล 3D
-          mediaPipeService.initialize() // <<<--- โหลดและตั้งค่า MediaPipe
+          ...modelUrls.map(url => preloadGLTF(url)),      // โหลดโมเดル 3D
+          ...videoUrls.map(url => preloadVideo(url)),     // <<<--- โหลดวิดีโอ
+          mediaPipeService.initialize()                   // โหลดและตั้งค่า MediaPipe
         ];
 
-        // 3. รอให้ทุกอย่างเสร็จสิ้น
+        // 4. รอให้ทุกอย่างเสร็จสิ้น
         await Promise.all(assetPromises);
 
         console.log("All assets preloaded successfully!");
         setIsLoading(false);
       } catch (error) {
         console.error('Fatal Error: Preloading assets failed:', error);
-        // ควรแสดงหน้า Error ที่นี่
         setIsLoading(false);
       }
     }
