@@ -47,12 +47,6 @@ body {
   align-items: center;
 }
 
-/* 
- * ลบส่วนนี้ออกไปแล้ว
- * .ar-overlay-wrapper { ... }
- * .ar-overlay-wrapper.visible { ... }
-*/
-
 /* === Desktop Breakpoint === */
 @media (min-width: 1025px) {
   .app-background {

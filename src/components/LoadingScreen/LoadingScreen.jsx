@@ -1,57 +1,55 @@
 import React, { useState } from 'react';
 import './LoadingScreen.css';
 
-// 1. Import เครื่องมือที่จำเป็นจาก Cloudinary
+// ใช้ AdvancedImage จาก Cloudinary เพื่อโหลดและแสดงภาพ
 import { AdvancedImage } from '@cloudinary/react';
-import { cld } from '../../utils/cloudinary'; // Import instance ที่เราตั้งค่าไว้
+import { cld } from '../../utils/cloudinary'; // ตัว cld ที่ตั้งค่าไว้แล้ว
 import { quality } from '@cloudinary/url-gen/actions/delivery';
 
-// 2. สร้าง Cloudinary Image Objects
-//    เราจะสร้าง object นอก component เพื่อไม่ให้มันถูกสร้างใหม่ทุกครั้งที่ re-render
+// สร้าง Cloudinary image objects ไว้นอก component เพื่อไม่ให้สร้างซ้ำเวลา re-render
 const backgroundCldImage = cld.image('TKO/MAMAOK/images/ink.webp')
-    .delivery(quality('auto')); // เพิ่ม transformation เพื่อ optimize
+    .delivery(quality('auto')); // ปรับคุณภาพภาพให้อัตโนมัติ
 
 const logoCldImage = cld.image('TKO/MAMAOK/images/mama-logo.webp')
     .delivery(quality('auto'));
 
-
 /**
- * LoadingScreen Component
- * - ใช้ <AdvancedImage> เพื่อแสดงผลภาพจาก Cloudinary
- * - จัดการสถานะการโหลดของภาพพื้นหลังอย่างถูกต้อง
+ * หน้าโหลดหลักของแอป
+ * - แสดงภาพพื้นหลังและโลโก้
+ * - ควบคุมการแสดงผลเนื้อหาหลังภาพพื้นหลังโหลดเสร็จ
+ * - รับ prop isFadingOut เพื่อใช้จัดการอนิเมชันตอนปิดหน้าโหลด
  */
-const LoadingScreen = ({ isFadingOut }) => { // อย่าลืมรับ prop isFadingOut ที่ส่งมาจาก App.jsx
+const LoadingScreen = ({ isFadingOut }) => {
     const [isBgLoaded, setIsBgLoaded] = useState(false);
 
-    // สร้าง className แบบไดนามิกสำหรับ fade out
+    // สร้างชื่อคลาสแบบไดนามิก เพื่อเพิ่มคลาส fading-out ตอนกำลังจะซ่อน
     const containerClassName = `loading-screen-container ${isFadingOut ? 'fading-out' : ''}`;
 
     return (
-        // ใช้ className ที่สร้างขึ้น
         <div className={containerClassName}>
 
-            {/* 3. ใช้ <AdvancedImage> และส่ง object ผ่าน prop 'cldImg' */}
+            {/* แสดงภาพพื้นหลัง */}
             <AdvancedImage
-                cldImg={backgroundCldImage} // <<-- ใช้ cldImg
+                cldImg={backgroundCldImage}
                 alt="Background"
                 className="loading-background-image"
-                // 4. เพิ่ม plugin 'responsive' และ 'placeholder' เพื่อประสบการณ์ที่ดีขึ้น
                 plugins={[
                     (img) => {
-                        // นี่คือวิธีที่ถูกต้องในการใช้ onLoad กับ AdvancedImage
+                        // รอจนภาพพื้นหลังโหลดเสร็จ แล้วตั้งสถานะ
                         img.addEventListener('load', () => {
                             setIsBgLoaded(true);
                         });
-                        return () => { // cleanup function
+                        return () => {
                             img.removeEventListener('load');
                         };
                     }
                 ]}
             />
 
+            {/* เนื้อหาโลโก้และข้อความ จะโชว์เมื่อภาพพื้นหลังโหลดเสร็จ */}
             <div className={`loading-content ${isBgLoaded ? 'visible' : ''}`}>
                 <AdvancedImage
-                    cldImg={logoCldImage} // <<-- ใช้ cldImg
+                    cldImg={logoCldImage}
                     alt="Mama Logo"
                     className="loading-logo"
                 />

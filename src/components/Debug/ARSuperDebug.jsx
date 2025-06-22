@@ -1,8 +1,8 @@
-import React, { useRef, useEffect, Suspense, useMemo, forwardRef, useImperativeHandle } from "react";
+import React, { useRef, useEffect, Suspense, useMemo, forwardRef, useImperativeHandle, useState } from "react";
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useGLTF, Preload, useVideoTexture, useTexture } from '@react-three/drei';
-import { FaceMesh } from "@mediapipe/face_mesh";
+import mediaPipeService from "../../services/mediaPipeService";
 import { Camera } from "@mediapipe/camera_utils";
 
 import './ARSuperDebug.css';
@@ -279,6 +279,9 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, cameraFacingMode }, ref) => {
     const landmarksRef = useRef(null);
     const glRef = useRef(null); // Ref ใหม่สำหรับเก็บ WebGL Renderer
 
+    // *** เพิ่ม State สำหรับจัดการสถานะ MediaPipe ***
+    const [isMediaPipeReady, setIsMediaPipeReady] = useState(false);
+
     useImperativeHandle(ref, () => ({
         // ใช้ getter เพื่อให้แน่ใจว่าได้ค่า .current ล่าสุดเสมอ
         get arCanvas() {
@@ -305,19 +308,20 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, cameraFacingMode }, ref) => {
     // ถ้า URL ยังไม่พร้อม (เช่น ตอนเริ่มต้น), ไม่ต้อง render อะไรเลย
     if (!modelUrls.bowl) return null;
 
-    // State ใหม่เพื่อเก็บขนาดของวิดีโอ
-    // const [videoSize, setVideoSize] = useState({ width: 1280, height: 720 });
-
     // **[แก้ไข 3]** ทำให้ useEffect ทำงานใหม่เมื่อ cameraFacingMode เปลี่ยน
     useEffect(() => {
         const videoElement = videoRef.current;
-        if (!videoElement) return;
+        // *** Guard Clause: รอให้ MediaPipe พร้อมก่อน ***
+        if (!videoElement || !isMediaPipeReady) return;
+
+        // 1. ดึง FaceMesh instance ที่ initialize ไว้แล้วจาก service
+        const faceMesh = mediaPipeService.getInstance();
+        if (!faceMesh) {
+            console.error("ARSuperDebug: Attempted to run without a ready FaceMesh instance.");
+            return;
+        }
 
         let camera = null;
-        const faceMesh = new FaceMesh({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
-        });
-        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
 
         faceMesh.onResults((results) => {
             const canvasElement = canvas2DRef.current;
@@ -353,31 +357,55 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, cameraFacingMode }, ref) => {
 
         // Cleanup function: สำคัญมากเมื่อ dependency เปลี่ยน
         return () => {
+            console.log("Cleaning up camera and FaceMesh listener for ARSuperDebug.");
             camera?.stop();
-            faceMesh.close();
+            // **สำคัญ:** เราไม่เรียก faceMesh.close() ที่นี่แล้ว
+            // เพราะ instance จะถูกใช้ซ้ำ เราแค่ "ยกเลิกการฟัง" onResults ก็พอ
+            // โดยการตั้งค่าเป็น callback ว่างๆ
+            if (faceMesh) {
+                faceMesh.onResults(() => { });
+            }
         };
 
-    }, [cameraFacingMode]); // <-- เพิ่ม cameraFacingMode ใน dependency array
+    }, [cameraFacingMode, isMediaPipeReady]); // <-- เพิ่ม cameraFacingMode ใน dependency array
+
+    // *** Effect ใหม่: สำหรับเช็คว่า MediaPipe พร้อมหรือยัง ***
+    useEffect(() => {
+        // ลองดึง instance ดู ถ้าได้แสดงว่าพร้อมแล้ว
+        const instance = mediaPipeService.getInstance();
+        if (instance) {
+            setIsMediaPipeReady(true);
+        } else {
+            // กรณีฉุกเฉิน: ถ้าเข้ามาหน้านี้แล้วยังไม่พร้อม ให้ลอง initialize อีกที
+            mediaPipeService.initialize().then(() => {
+                setIsMediaPipeReady(true);
+            });
+        }
+    }, []);
 
     return (
         <div className="super-debug-container">
             <video ref={videoRef} className="input_video" autoPlay playsInline style={{ display: 'none' }} />
-            <canvas ref={canvas2DRef} className="output_canvas_debug" />
+            {isMediaPipeReady && (
+                <>
+                    <canvas ref={canvas2DRef} className="output_canvas_debug" />
 
-            <Canvas className="ar-canvas-3d-debug"
-                onCreated={(state) => { glRef.current = state.gl; }}
-                gl={{ preserveDrawingBuffer: true }}>
-                <ambientLight intensity={1.2} />
-                <directionalLight position={[0, 5, 5]} intensity={1.8} />
-                <Suspense fallback={null}>
-                    {/* [แก้ไข] เรียกใช้แค่ FaceAnchor ตัวเดียว */}
-                    <FaceAnchor
-                        landmarksRef={landmarksRef} modelUrls={modelUrls}
-                    />
-                    <HeadsUpDisplay selectedFlavor={selectedFlavor} />
-                    <Preload all />
-                </Suspense>
-            </Canvas>
+                    <Canvas className="ar-canvas-3d-debug"
+                        onCreated={(state) => { glRef.current = state.gl; }}
+                        gl={{ preserveDrawingBuffer: true }}>
+                        <ambientLight intensity={1.2} />
+                        <directionalLight position={[0, 5, 5]} intensity={1.8} />
+                        <Suspense fallback={null}>
+                            {/* [แก้ไข] เรียกใช้แค่ FaceAnchor ตัวเดียว */}
+                            <FaceAnchor
+                                landmarksRef={landmarksRef} modelUrls={modelUrls}
+                            />
+                            <HeadsUpDisplay selectedFlavor={selectedFlavor} />
+                            <Preload all />
+                        </Suspense>
+                    </Canvas>
+                </>
+            )}
         </div>
     );
 });

@@ -1,9 +1,4 @@
-/* ลบ @font-face ออกจากที่นี่ เพราะเราย้ายไปไว้ที่ App.css แล้ว */
-
-/*
- * Container หลักของหน้าโหลด
- * ทำหน้าที่เป็นกรอบอ้างอิงตำแหน่ง (position: relative)
- */
+/* ตัว container หลักของหน้าโหลด */
 .loading-screen-container {
   width: 100%;
   height: 100%;
@@ -11,56 +6,48 @@
   top: 0;
   left: 0;
   overflow: hidden;
-  z-index: 999;
+  z-index: 999; /* ให้แสดงทับทุกอย่าง */
 }
 
-/*
- * สไตล์สำหรับ <img> ที่ใช้เป็นพื้นหลัง
- */
+/* ภาพพื้นหลังให้เต็มจอและอยู่ข้างหลัง */
 .loading-background-image {
-  /* ทำให้ภาพยืดเต็ม container และอยู่ด้านหลังสุด */
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover; /* ยังคงสำคัญมาก! */
-  z-index: -1; /* ส่งไปอยู่หลังสุด */
+  object-fit: cover; /* ปรับภาพให้เต็มพื้นที่โดยไม่เสียสัดส่วน */
+  z-index: -1; /* ดันภาพไปข้างหลัง */
 }
 
-/*
- * Container สำหรับเนื้อหาทั้งหมด (โลโก้, ข้อความ)
- */
+/* เนื้อหาทั้งหมดที่อยู่บนภาพพื้นหลัง */
 .loading-content {
   width: 100%;
   height: 100%;
   color: white;
 
-  /* จัดเรียงแบบเดิม: โลโก้อยู่บน, ข้อความอยู่ล่าง */
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
   padding: 8vh 2rem;
 
-  /* สถานะเริ่มต้น: ซ่อนไว้ */
-  opacity: 0;
-  /* อนิเมชัน Fade-in */
-  transition: opacity 0.5s ease-in-out;
+  opacity: 0; /* เริ่มต้นซ่อน */
+  transition: opacity 0.5s ease-in-out; /* ทำให้ค่อยๆ ปรากฏ */
 }
 
-/* เมื่อมี class 'visible', ให้มันแสดงผล */
+/* เมื่อโหลดภาพเสร็จ ให้แสดงเนื้อหา */
 .loading-content.visible {
   opacity: 1;
 }
 
-/* --- สไตล์ขององค์ประกอบภายใน (เหมือนเดิม) --- */
-
+/* โลโก้ขนาดกำลังดี */
 .loading-logo {
   width: 235px;
   height: auto;
 }
 
+/* จัดเรียงข้อความให้อยู่ตรงกลาง */
 .loading-text-container {
   display: flex;
   flex-direction: column;
@@ -68,6 +55,7 @@
   text-align: center;
 }
 
+/* ข้อความหลัก */
 .loading-text-main {
   font-family: "NotoSansThai", sans-serif;
   font-size: 1.5rem;
@@ -76,6 +64,7 @@
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
 }
 
+/* ข้อความรอง เน้นตัวหนา */
 .loading-text-sub {
   font-family: "NotoSansThai", sans-serif;
   font-size: 1.8rem;
@@ -84,6 +73,7 @@
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
 }
 
+/* จุดแสดงสถานะโหลด (ดอท) */
 .loading-dots {
   display: flex;
   align-items: center;
@@ -100,7 +90,8 @@
   line-height: 1;
   animation: blink 1.4s infinite;
 }
-/* ... animation keyframes และ nth-child delay เหมือนเดิม ... */
+
+/* ตั้ง delay ให้แต่ละจุดกระพริบไม่พร้อมกัน */
 .loading-dots span:nth-child(2) {
   animation-delay: 0.2s;
 }
@@ -111,6 +102,7 @@
   animation-delay: 0.6s;
 }
 
+/* อนิเมชันกระพริบ */
 @keyframes blink {
   0%,
   100% {

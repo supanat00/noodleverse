@@ -1,31 +1,33 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import './CameraUI.css';
+
+import PreviewModal from '../PreviewModal/PreviewModal';
+
+// --- Assets & Icons ---
 import iconSwitchCamera from '/assets/icons/switch-camera.webp';
-import { AdvancedImage } from '@cloudinary/react';
-import { cld } from '../../utils/cloudinary';
-import { quality } from '@cloudinary/url-gen/actions/delivery';
 
-const backgroundCldImage = cld.image('TKO/MAMAOK/images/preview-bg.webp')
-    .delivery(quality('auto'));
-
-const logoCldImage = cld.image('TKO/MAMAOK/images/mama-logo.webp')
-    .delivery(quality('auto'));
-
-// ไอคอน SVG สำหรับปุ่มต่างๆ
 const CameraIcon = () => <svg width="24px" height="24px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="#000000" strokeWidth="1.5" /><path d="M8.5 4.5h7c3.06 0 4.58 0 5.5.87a3.83 3.83 0 011.22 1.29c.88 1 .88 2.5.88 5.56s0 4.59-.88 5.69a3.83 3.83 0 01-1.22 1.3c-.92.87-2.44.87-5.5.87h-7c-3.06 0-4.58 0-5.5-.87a3.83 3.83 0 01-1.22-1.3C2 17.56 2 16.03 2 13s0-4.59.88-5.69A3.83 3.83 0 014 6.01C4.92 5.14 6.44 5.14 9.5 5.14h0" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" /><path d="M18 10h-1" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" /></svg>;
 const VideoIcon = () => <svg width="24px" height="24px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 10l2.58-1.55a2 2 0 013.42 1.55v4a2 2 0 01-3.42 1.55L16 14M6.2 18h6.6c1.12 0 1.68 0 2.1-.22a2 2 0 001.1-1.1c.22-.42.22-1 .22-2.1V9.2c0-1.12 0-1.68-.22-2.1a2 2 0 00-1.1-1.1c-.42-.22-1-.22-2.1-.22H6.2c-1.12 0-1.68 0-2.1.22a2 2 0 00-1.1 1.1c-.22.42-.22 1-.22 2.1v3.6c0 1.12 0 1.68.22 2.1a2 2 0 001.1 1.1c.42.22 1 .22 2.1.22z" stroke="#000000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 
+/**
+ * CameraUI
+ * 
+ * จัดการส่วนควบคุมกล้อง (สลับโหมด, ถ่าย/อัด, สลับกล้อง)
+ * และเป็นตัวกลางในการเรียกใช้ฟังก์ชันจาก arSystem (ผ่าน ref)
+ * รวมถึงแสดง PreviewModal เมื่อมี content ที่ถูกสร้างขึ้น
+ */
 const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
-    const [mode, setMode] = useState('photo');
-    const [isRecording, setIsRecording] = useState(false);
-    const [showPreview, setShowPreview] = useState(false);
-    const [preview, setPreview] = useState({ type: '', src: '' });
 
-    // ใช้ Ref เก็บ MediaRecorder และข้อมูลวิดีโอ
+    // --- State Management ---
+    const [mode, setMode] = useState('photo'); // 'photo' | 'video'
+    const [isRecording, setIsRecording] = useState(false);
+
+    const [preview, setPreview] = useState(null); // null | { type: 'image'|'video', src: '...' }
+
+    // --- Refs for Recording Logic ---
     const mediaRecorderRef = useRef(null);
     const recordedChunksRef = useRef([]);
-    const videoPreviewRef = useRef(null);
-    const animationFrameIdRef = useRef(null); // เพิ่ม ref สำหรับ animation frame
+    const animationFrameIdRef = useRef(null);
 
     // --- ฟังก์ชันถ่ายภาพ (แปลจาก captureAFrameCombined) ---
     const handleTakePhoto = useCallback(() => {
@@ -89,7 +91,6 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
 
             const dataURL = finalCanvas.toDataURL('image/png');
             setPreview({ type: 'image', src: dataURL });
-            setShowPreview(true);
         });
     }, [arSystemRef]);
 
@@ -138,12 +139,8 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
                 console.log("Recording stopped, creating blob.");
                 const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
                 const videoUrl = URL.createObjectURL(videoBlob);
-
-                // ใช้ State ของ React ในการแสดงผล
-                setPreview({ type: 'video', src: videoUrl });
-                setShowPreview(true);
-
-                recordedChunksRef.current = []; // Reset เพื่อการอัดครั้งถัดไป
+                setPreview({ type: 'video', src: videoUrl }); // <-- ตั้ง state
+                recordedChunksRef.current = [];
             };
 
             recorder.start();
@@ -229,13 +226,12 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
     // ** ฟังก์ชันสำหรับปุ่ม "เล่นอีกครั้ง" **
     const handleRetry = useCallback(() => {
         console.log("ACTION: Retry");
-        setShowPreview(false);
 
-        // ล้างข้อมูล preview และปล่อยทรัพยากร
-        if (preview.type === 'video' && preview.src) {
+        // *** เปลี่ยนแค่ตรงนี้ ***
+        if (preview && preview.type === 'video' && preview.src) {
             URL.revokeObjectURL(preview.src);
         }
-        setPreview({ type: '', src: '' });
+        setPreview(null);
     }, [preview]);
 
     // ** ฟังก์ชันสำหรับปุ่ม "บันทึก" (ตามโค้ดเก่า) **
@@ -293,22 +289,46 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
         }
     }, [preview]);
 
-    // Cleanup เมื่อ component unmount
-    React.useEffect(() => {
+    // Effect ที่ 1: จัดการการ cleanup เมื่อ "preview" เปลี่ยนแปลง
+    useEffect(() => {
+        // Effect นี้จะทำงานเมื่อ `preview` มีค่าใหม่
+        // และจะ return cleanup function สำหรับ "preview เก่า"
+
+        // เก็บค่า src ของ preview ปัจจุบันไว้ในตัวแปร
+        const currentPreviewSrc = preview?.src;
+        const isVideo = preview?.type === 'video';
+
         return () => {
+            // Cleanup function นี้จะทำงาน "ก่อน" ที่ effect ครั้งต่อไปจะรัน
+            // หรือเมื่อ component unmount
+            // มันจะทำการ cleanup "preview ตัวเก่า"
+            if (isVideo && currentPreviewSrc) {
+                console.log("Revoking old video URL:", currentPreviewSrc);
+                URL.revokeObjectURL(currentPreviewSrc);
+            }
+        };
+    }, [preview]); // ทำงานใหม่ทุกครั้งที่ object `preview` เปลี่ยน
+
+    // Effect ที่ 2: จัดการการ cleanup เมื่อ "Component ถูกทำลาย"
+    useEffect(() => {
+        // Effect นี้จะทำงานครั้งเดียวตอน mount
+        // และ cleanup จะทำงานครั้งเดียวตอน unmount
+        return () => {
+            console.log("CameraUI is unmounting. Cleaning up animation frames.");
             if (animationFrameIdRef.current) {
                 cancelAnimationFrame(animationFrameIdRef.current);
             }
-            if (preview.type === 'video' && preview.src) {
-                URL.revokeObjectURL(preview.src);
+            // เราอาจจะหยุด MediaRecorder ที่อาจจะค้างอยู่ด้วย
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+                mediaRecorderRef.current.stop();
             }
         };
-    }, [preview]);
+    }, []); // Dependency array ว่างเปล่า = unmount cleanup
 
     return (
         <div className="ui-overlay">
             {/* ส่วนควบคุมหลัก */}
-            <div className={`camera-controls ${showPreview ? 'hidden' : ''}`}>
+            <div className={`camera-controls ${preview ? 'hidden' : ''}`}>
                 {/* ปุ่มสลับกล้องหน้า/หลัง */}
                 <button
                     className="action-button side-button-left"
@@ -372,63 +392,12 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
             </div>
 
             {/* หน้า Preview */}
-            {showPreview && (
-                <div className="preview-modal">
-                    <AdvancedImage
-                        cldImg={backgroundCldImage}
-                        alt="Preview Background"
-                        className="preview-background-image"
-                    />
-
-                    <AdvancedImage
-                        cldImg={logoCldImage}
-                        alt="Brand Logo"
-                        className="preview-brand-logo"
-                    />
-
-                    <div className="preview-content-frame">
-                        <div className="preview-content-wrapper">
-                            {preview.type === 'image' && (
-                                <img
-                                    src={preview.src}
-                                    alt="Preview"
-                                    style={{
-                                        maxWidth: '100%',
-                                        border: '3px solid white',
-                                        borderRadius: '8px',
-                                        display: 'block'
-                                    }}
-                                />
-                            )}
-                            {preview.type === 'video' && (
-                                <video
-                                    ref={videoPreviewRef}
-                                    src={preview.src}
-                                    autoPlay
-                                    loop
-                                    muted
-                                    playsInline
-                                    controls={false}
-                                    style={{
-                                        maxWidth: '100%',
-                                        border: '3px solid white',
-                                        borderRadius: '8px',
-                                        display: 'block'
-                                    }}
-                                />
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="preview-actions">
-                        <button className="preview-button retry" onClick={handleRetry}>
-                            เล่นอีกครั้ง
-                        </button>
-                        <button className="preview-button save" onClick={handleSave}>
-                            บันทึก
-                        </button>
-                    </div>
-                </div>
+            {preview && (
+                <PreviewModal
+                    preview={preview}
+                    onRetry={handleRetry}
+                    onSave={handleSave}
+                />
             )}
         </div>
     );

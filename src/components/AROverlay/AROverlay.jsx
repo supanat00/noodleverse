@@ -1,40 +1,36 @@
-import React, { useState, useEffect, useRef } from 'react';
+/**
+ * AROverlay.jsx
+ * 
+ * Controller หลักสำหรับหน้า AR ทำหน้าที่จัดการ state ของแอป
+ * และเป็นตัวกลางเชื่อมระหว่าง UI components กับ AR Scene
+ */
+import React, { useState, useRef, useCallback } from 'react'; // 1. import useCallback
 import './AROverlay.css';
 import { FLAVORS } from '../../data/flavors';
 
-// Import UI Components
+// UI Components
 import FlavorSelector from '../FlavorSelector/FlavorSelector';
-import LoadingScreen from '../LoadingScreen/LoadingScreen'; // Import หน้าโหลด
 import CameraUI from '../CameraUI/CameraUI';
 
-// Import Scene Components
+// Scene Components
 import ARSuperDebug from '../Debug/ARSuperDebug';
 
-const LOADING_DURATION = 8000; // 3 วินาที
-
 const AROverlay = () => {
-    // --- STATE MANAGEMENT ---
     const [selectedFlavorId, setSelectedFlavorId] = useState(FLAVORS[0].id);
-    const [appState, setAppState] = useState('loading');
-
-    // **[แก้ไข 1]** สร้าง ref ตัวเดียวเพื่อรับ handles จาก ARSuperDebug
+    const [cameraFacingMode, setCameraFacingMode] = useState('user');
     const arSystemRef = useRef(null);
-    const presenterContainerRef = useRef(null);
-
-    // **[แก้ไข 3 - เพิ่ม]** จัดการ State ของกล้องที่นี่ (Lifting State Up)
-    const [cameraFacingMode, setCameraFacingMode] = useState('user'); // 'user' หรือ 'environment'
-
-    // --- EFFECTS ---
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setAppState('ready');
-        }, LOADING_DURATION);
-        return () => clearTimeout(timer);
-    }, []);
-
-    // --- DATA & LOGIC ---
-    // ข้อมูลรสชาติจาก ID ที่เราเลือก
     const selectedFlavor = FLAVORS.find(flavor => flavor.id === selectedFlavorId);
+
+    // 2. ห่อฟังก์ชันที่ส่งเป็น props ด้วย useCallback
+    // ฟังก์ชันนี้จะถูก "จำ" ไว้ และจะไม่ถูกสร้างใหม่ทุกครั้งที่ re-render
+    // ทำให้ child component ที่ใช้ React.memo ไม่ re-render โดยไม่จำเป็น
+    const handleSelectFlavor = useCallback((id) => {
+        setSelectedFlavorId(id);
+    }, []); // Dependency array ว่าง หมายถึง สร้างฟังก์ชันนี้แค่ครั้งแรกครั้งเดียว
+
+    const handleSwitchCamera = useCallback((mode) => {
+        setCameraFacingMode(mode);
+    }, []);
 
     return (
         <div className="ar-overlay">
@@ -43,24 +39,25 @@ const AROverlay = () => {
                 selectedFlavor={selectedFlavor}
                 cameraFacingMode={cameraFacingMode}
             />
-
             <div className="ui-layer visible">
+                {/* 3. ส่งฟังก์ชันที่ผ่านการ memoized แล้วไปเป็น props */}
                 <FlavorSelector
                     selectedFlavorId={selectedFlavorId}
-                    onSelectFlavor={setSelectedFlavorId}
+                    onSelectFlavor={handleSelectFlavor}
                 />
                 <CameraUI
                     arSystemRef={arSystemRef}
-                    presenterContainer={presenterContainerRef.current} // <-- ส่ง Element, ไม่ใช่ Ref Object
                     cameraFacingMode={cameraFacingMode}
-                    onSwitchCamera={setCameraFacingMode}
+                    onSwitchCamera={handleSwitchCamera}
                 />
             </div>
-
-            {appState === 'loading' && <LoadingScreen />}
-
         </div>
     );
 };
+
+// **อย่าลืม!** ไปที่ไฟล์ FlavorSelector.jsx และ CameraUI.jsx
+// แล้วห่อ export default ด้วย React.memo ด้วยนะครับ
+// export default React.memo(FlavorSelector);
+// export default React.memo(CameraUI);
 
 export default AROverlay;
