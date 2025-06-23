@@ -7,11 +7,16 @@ import { FLAVORS } from './data/flavors';
 
 // import preload modules
 import mediaPipeService from './services/mediaPipeService'
+
+import liff from '@line/liff';
+
 import { preloadGLTF } from './utils/preloadGLTF';
 import { preloadVideo } from './utils/preloadVideo';
 
 // React.lazy ยังคงใช้เหมือนเดิม
 const AROverlay = React.lazy(() => import('./components/AROverlay/AROverlay'));
+
+const VITE_LIFF_ID = import.meta.env.VITE_LIFF_ID; // ดึงค่าจาก .env
 
 function App() {
   // 2. สร้าง State ใหม่สำหรับจัดการ Flow ทั้งหมด
@@ -81,6 +86,28 @@ function App() {
       setError("จำเป็นต้องอนุญาตให้เข้าถึงกล้องเพื่อใช้งาน");
     }
   }, [startPreloading]); // ระบุ dependency
+
+  // --- useEffect สำหรับ Initialize LIFF ในเบื้องหลัง ---
+  useEffect(() => {
+    // ฟังก์ชันนี้จะทำงานเงียบๆ ไม่กระทบกับ Flow หลัก
+    const initializeLiff = async () => {
+      try {
+        if (!VITE_LIFF_ID) {
+          console.warn("LIFF ID not found, skipping LIFF initialization.");
+          return;
+        }
+        console.log("Initializing LIFF in the background...");
+        await liff.init({ liffId: VITE_LIFF_ID });
+        console.log("LIFF initialized successfully in the background.");
+      } catch (err) {
+        console.error("Background LIFF initialization failed:", err);
+        // เราอาจจะไม่ต้องตั้งค่า error ที่แสดงผลให้ผู้ใช้เห็นก็ได้
+        // เพราะแอปยังคงทำงานต่อได้แม้ LIFF จะ init ไม่สำเร็จ
+      }
+    };
+
+    initializeLiff();
+  }, []); // ทำงานครั้งเดียวตอนเริ่มแอป
 
   // 5. สร้างฟังก์ชันสำหรับ Render เนื้อหาตาม State
   const renderContent = () => {

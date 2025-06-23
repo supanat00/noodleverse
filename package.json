@@ -12,6 +12,7 @@
   "dependencies": {
     "@cloudinary/react": "^1.14.3",
     "@cloudinary/url-gen": "^1.21.0",
+    "@line/liff": "^2.26.1",
     "@mediapipe/camera_utils": "^0.3.1675466862",
     "@mediapipe/drawing_utils": "^0.3.1675466124",
     "@mediapipe/face_mesh": "^0.4.1633559619",
