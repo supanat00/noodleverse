@@ -122,7 +122,8 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
             // สร้าง MediaRecorder
             const stream = recordingCanvas.captureStream(30);
             const recorder = new MediaRecorder(stream, {
-                mimeType: "video/mp4; codecs=avc1.42E01E,mp4a.40.2"
+                mimeType: "video/webm;codecs=h264",
+                // mimeType: "video/mp4; codecs=avc1.42E01E,mp4a.40.2"
             });
             mediaRecorderRef.current = recorder;
             recordedChunksRef.current = [];
@@ -234,58 +235,76 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
         setPreview(null);
     }, [preview]);
 
-    // ** ฟังก์ชันสำหรับปุ่ม "บันทึก" (ตามโค้ดเก่า) **
-    const handleSave = useCallback(async () => {
-        console.log("ACTION: Save/Share");
+    // ** ฟังก์ชันสำหรับปุ่ม "บันทึก" (Download) **
+    const handleDownload = useCallback(async () => {
+        console.log("ACTION: Download");
+        if (!preview?.src) {
+            console.warn("No active preview found to download.");
+            return;
+        }
 
         try {
-            let blob = null;
-            let filename = "shared_content";
-            let fileType = "application/octet-stream";
+            const response = await fetch(preview.src);
+            if (!response.ok) throw new Error(`Failed to fetch ${preview.type} blob`);
+            const blob = await response.blob();
 
-            if (preview.type === 'video' && preview.src) {
-                filename = "video.mp4";
-                fileType = "video/mp4";
-                const response = await fetch(preview.src);
-                if (!response.ok) throw new Error("Failed to fetch video blob");
-                blob = await response.blob();
-            } else if (preview.type === 'image' && preview.src) {
-                filename = "image.png";
-                fileType = "image/png";
-                const response = await fetch(preview.src);
-                if (!response.ok) throw new Error("Failed to fetch image blob");
-                blob = await response.blob();
-            } else {
-                console.warn("No active preview found to share.");
-                return;
-            }
+            const filename = preview.type === 'video' ? 'mama-noodleverse.mp4' : 'mama-noodleverse.png';
 
-            if (!blob) {
-                console.error("Could not get Blob data for sharing.");
-                return;
-            }
+            // Logic การดาวน์โหลดโดยตรง
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            console.log("File downloaded successfully.");
 
+        } catch (error) {
+            console.error("Error downloading content:", error);
+            alert(`การดาวน์โหลดล้มเหลว: ${error.message}`);
+        }
+    }, [preview]);
+
+    // ** ฟังก์ชันสำหรับปุ่ม "แชร์" (Share) **
+    const handleShare = useCallback(async () => {
+        console.log("ACTION: Share");
+        if (!preview?.src) {
+            console.warn("No active preview found to share.");
+            return;
+        }
+
+        try {
+            const response = await fetch(preview.src);
+            if (!response.ok) throw new Error(`Failed to fetch ${preview.type} blob`);
+            const blob = await response.blob();
+
+            const filename = preview.type === 'video' ? 'video.mp4' : 'image.png';
+            const fileType = preview.type === 'video' ? 'video/mp4' : 'image/png';
             const file = new File([blob], filename, { type: fileType });
-            const shareData = { files: [file] };
+            const shareData = {
+                files: [file],
+                title: 'MAMA Noodle Verse',
+                text: 'มาเล่น AR สนุกๆ กับ MAMA กัน!',
+            };
 
-            if (navigator.canShare && navigator.canShare(shareData)) {
+            if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
                 await navigator.share(shareData);
                 console.log("Share successful");
             } else {
-                // Fallback - สร้าง download link
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                console.log("File downloaded");
+                alert("ฟังก์ชันแชร์ไม่สามารถใช้งานได้บนเบราว์เซอร์นี้");
+                console.error("Sharing not supported.");
             }
         } catch (error) {
-            console.error("Error sharing/saving content:", error);
-            alert(`การบันทึกล้มเหลว: ${error.message}`);
+            // ไม่ต้องแสดง alert ถ้าผู้ใช้กดยกเลิกการแชร์เอง
+            if (error.name !== 'AbortError') {
+                console.error("Error sharing content:", error);
+                alert(`การแชร์ล้มเหลว: ${error.message}`);
+            } else {
+                console.log("Share action was cancelled by the user.");
+            }
         }
     }, [preview]);
 
@@ -396,7 +415,8 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
                 <PreviewModal
                     preview={preview}
                     onRetry={handleRetry}
-                    onSave={handleSave}
+                    onSave={handleDownload}
+                    onShare={handleShare}
                 />
             )}
         </div>

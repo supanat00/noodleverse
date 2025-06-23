@@ -9,20 +9,20 @@
   pointer-events: auto;
   z-index: 100;
   overflow: hidden;
-  /* เพิ่ม animation fade-in เล็กน้อย */
-  animation: modal-fade-in 0.3s ease-out;
+
+  /* เริ่มต้นด้วยการซ่อน Modal ไว้ก่อน */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease-out, visibility 0.3s;
 }
 
-@keyframes modal-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+/* เมื่อพร้อมแสดงผล ให้ค่อยๆ Fade In เข้ามา */
+.preview-modal.visible {
+  opacity: 1;
+  visibility: visible;
 }
 
-/* Helper class สำหรับซ่อน element แต่ยังให้ screen reader อ่านได้ */
+/* Helper class (เหมือนเดิม) */
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -47,7 +47,7 @@
 
 .preview-brand-logo {
   position: absolute;
-  top: 4vh;
+  top: 4vh; /* ดันลงมาเล็กน้อย */
   left: 50%;
   transform: translateX(-50%);
   width: clamp(80px, 20vw, 120px);
@@ -57,19 +57,16 @@
 
 .preview-content-frame {
   position: absolute;
-  top: 50%;
+  /* ปรับตำแหน่ง Y ขึ้นไปเล็กน้อย เพื่อให้มีที่สำหรับปุ่ม */
+  top: 48%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 70%;
-  max-width: 360px;
-  border-radius: 24px;
-  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.2);
+  /* ลดขนาดลงเล็กน้อยเพื่อให้มีพื้นที่รอบๆ */
+  width: 65%;
+  max-width: 340px;
   z-index: 2;
-  overflow: hidden;
-  /* ใช้ aspect-ratio เพื่อรักษาสัดส่วน 9:16 */
   aspect-ratio: 9 / 16;
-  background-color: #111; /* สีพื้นหลังเผื่อรูปโหลดช้า */
-  display: flex;
+  display: flex; /* ไม่ต้องมี background, border หรือ shadow แล้ว */
 }
 
 .preview-content {
@@ -79,31 +76,46 @@
   display: block;
 }
 
-.preview-actions {
+/* ✨ เพิ่มกรอบสีขาวให้ตัว content โดยตรง ✨ */
+.preview-content.with-border {
+  border-radius: 24px;
+  border: 3px solid white;
+  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.2);
+  overflow: hidden; /* สำคัญมาก สำหรับ video/img ที่มี border-radius */
+}
+
+/* --- ✨ Layout ปุ่มแบบใหม่ ✨ --- */
+.preview-actions-container {
   position: absolute;
-  bottom: 8vh;
+  /* จัดตำแหน่งให้อยู่ด้านล่างของจอ */
+  bottom: 6vh;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  flex-direction: column; /* จัดเรียงแนวตั้ง */
   gap: 12px;
   z-index: 3;
-  width: 80%;
-  max-width: 400px;
-  justify-content: center;
+  width: 65%;
+  max-width: 420px;
+}
+
+.preview-actions-top-row {
+  display: flex;
+  gap: 12px;
+  width: 100%;
 }
 
 .preview-button {
-  flex: 1;
-  padding: 12px 20px;
+  flex: 1; /* ให้ปุ่มในแถวบนแบ่งพื้นที่เท่ากัน */
+  padding: 14px 20px; /* เพิ่ม padding เล็กน้อย */
   border-radius: 30px;
   border: none;
   font-size: 1rem;
   font-weight: bold;
   cursor: pointer;
-  transition: all 0.2s;
-  background-color: white;
-  color: #333;
+  transition: all 0.2s ease-in-out;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  -webkit-tap-highlight-color: transparent; /* ลบ highlight บน mobile */
 }
 
 .preview-button:hover {
@@ -114,4 +126,22 @@
 .preview-button:active {
   transform: translateY(0px) scale(0.98);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+/* ปุ่มหลัก (สีขาว) */
+.preview-button.primary {
+  background-color: white;
+  color: #333;
+}
+
+/* ปุ่มรอง (โปร่งแสง) */
+.preview-button.secondary {
+  background-color: rgba(255, 255, 255, 0.8);
+  color: #444;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+/* ปุ่มที่กว้างเต็มพื้นที่ */
+.preview-button.full-width {
+  width: 100%;
 }

@@ -1,85 +1,121 @@
-// src/components/PreviewModal/PreviewModal.jsx
-
-import React, { useRef, useEffect, useCallback } from 'react';
-import './PreviewModal.css'; // เราจะสร้างไฟล์ CSS นี้ด้วย
+import React, { useRef, useEffect, useState } from 'react';
+import './PreviewModal.css';
 import { AdvancedImage } from '@cloudinary/react';
 import { cld } from '../../utils/cloudinary';
 import { quality } from '@cloudinary/url-gen/actions/delivery';
 
-// --- Cloudinary Assets ---
-// การประกาศ asset นอก component เป็น practice ที่ดี เพราะมันไม่ต้องสร้างใหม่ทุกครั้งที่ render
+// --- Cloudinary Assets (Pre-defined) ---
 const backgroundCldImage = cld.image('TKO/MAMAOK/images/preview-bg.webp').delivery(quality('auto'));
 const logoCldImage = cld.image('TKO/MAMAOK/images/mama-logo.webp').delivery(quality('auto'));
+
+// --- Helper Component: Preloader ---
+// Component นี้จะโหลดรูปภาพในเบื้องหลังและเรียก callback เมื่อเสร็จสิ้น
+// แต่จะไม่แสดงผลอะไรออกมาเลย (null)
+const ImagePreloader = ({ imageUrl, onLoaded }) => {
+    useEffect(() => {
+        const img = new Image();
+        img.src = imageUrl;
+        img.onload = onLoaded;
+    }, [imageUrl, onLoaded]);
+    return null;
+};
+
 
 /**
  * PreviewModal
  * 
- * Component ที่รับผิดชอบการแสดงผลลัพธ์ (ภาพนิ่งหรือวิดีโอ)
- * และจัดการ action ของผู้ใช้ (ลองใหม่, บันทึก/แชร์)
+ * Component ที่แสดงผลลัพธ์ (ภาพนิ่งหรือวิดีโอ) และจัดการ action ของผู้ใช้
+ * - ปรับปรุง Layout ปุ่มใหม่เป็น 3 ปุ่ม
+ * - แก้ปัญหา Asset โหลดช้าโดยใช้ Preloader และจัดการ State
  */
-const PreviewModal = ({ preview, onRetry, onSave }) => {
-    // Ref สำหรับเข้าถึง video element โดยตรง (ถ้ามี)
+const PreviewModal = ({ preview, onRetry, onSave, onShare }) => {
     const videoRef = useRef(null);
+    const [areAssetsReady, setAreAssetsReady] = useState(false);
 
-    // Effect สำหรับจัดการการเล่นวิดีโออัตโนมัติเมื่อ element พร้อม
+    // Effect จัดการการเล่นวิดีโอ (เหมือนเดิม)
     useEffect(() => {
         if (preview.type === 'video' && videoRef.current) {
             videoRef.current.play().catch(error => {
-                // จัดการกรณีที่ browser block autoplay (เช่น ไม่ได้ muted)
                 console.warn("Autoplay was prevented:", error);
             });
         }
-    }, [preview.type, preview.src]); // ทำงานใหม่เมื่อ src ของวิดีโอเปลี่ยน
+    }, [preview.type, preview.src]);
+
+    // Callback ที่จะถูกเรียกเมื่อภาพพื้นหลังโหลดเสร็จ
+    const handleBackgroundLoaded = () => {
+        // เมื่อพื้นหลังพร้อม เราก็พร้อมที่จะแสดง Modal ทั้งหมด
+        setAreAssetsReady(true);
+    };
 
     return (
-        // ใช้ <div role="dialog"> และ aria-modal="true" เพื่อ accessibility ที่ดีขึ้น
-        <div className="preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-heading">
-            <AdvancedImage
-                cldImg={backgroundCldImage}
-                alt="" // decorative image
-                className="preview-background-image"
+        // เราจะใช้ "Preloader" เพื่อโหลดภาพพื้นหลังก่อน
+        // และใช้ State `areAssetsReady` ควบคุมการแสดงผลของ Modal จริง
+        <>
+            <ImagePreloader
+                imageUrl={backgroundCldImage.toURL()}
+                onLoaded={handleBackgroundLoaded}
             />
 
-            <h2 id="preview-heading" className="visually-hidden">Content Preview</h2>
+            {/* Modal ทั้งหมดจะถูกซ่อนไว้ด้วย CSS จนกว่า areAssetsReady จะเป็น true */}
+            <div
+                className={`preview-modal ${areAssetsReady ? 'visible' : ''}`}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="preview-heading"
+            >
+                <AdvancedImage
+                    cldImg={backgroundCldImage}
+                    alt="" // decorative image
+                    className="preview-background-image"
+                />
 
-            <AdvancedImage
-                cldImg={logoCldImage}
-                alt="Brand Logo"
-                className="preview-brand-logo"
-            />
+                <h2 id="preview-heading" className="visually-hidden">Content Preview</h2>
 
-            <div className="preview-content-frame">
-                {preview.type === 'image' && (
-                    <img
-                        src={preview.src}
-                        alt="Capture preview"
-                        className="preview-content"
-                    />
-                )}
-                {preview.type === 'video' && (
-                    <video
-                        ref={videoRef}
-                        src={preview.src}
-                        autoPlay
-                        loop
-                        muted
-                        playsInline
-                        className="preview-content"
-                    />
-                )}
+                <AdvancedImage
+                    cldImg={logoCldImage}
+                    alt="Brand Logo"
+                    className="preview-brand-logo"
+                />
+
+                <div className="preview-content-frame">
+                    {/* เราจะใส่กรอบ (border) ให้กับ content โดยตรง แทนที่จะหวังพึ่ง frame */}
+                    {preview.type === 'image' && (
+                        <img
+                            src={preview.src}
+                            alt="Capture preview"
+                            className="preview-content with-border"
+                        />
+                    )}
+                    {preview.type === 'video' && (
+                        <video
+                            ref={videoRef}
+                            src={preview.src}
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            className="preview-content with-border"
+                        />
+                    )}
+                </div>
+
+                {/* --- Layout ปุ่มแบบใหม่ --- */}
+                <div className="preview-actions-container">
+                    <div className="preview-actions-top-row">
+                        <button className="preview-button secondary" onClick={onSave}>
+                            บันทึก
+                        </button>
+                        <button className="preview-button secondary" onClick={onShare}>
+                            แชร์
+                        </button>
+                    </div>
+                    <button className="preview-button primary full-width" onClick={onRetry}>
+                        เล่นอีกครั้ง
+                    </button>
+                </div>
             </div>
-
-            <div className="preview-actions">
-                <button className="preview-button retry" onClick={onRetry}>
-                    เล่นอีกครั้ง
-                </button>
-                <button className="preview-button save" onClick={onSave}>
-                    บันทึก
-                </button>
-            </div>
-        </div>
+        </>
     );
 };
 
-// ใช้ React.memo เพราะ Modal นี้ไม่ควร re-render นอกจาก props จะเปลี่ยนจริงๆ
 export default React.memo(PreviewModal);
