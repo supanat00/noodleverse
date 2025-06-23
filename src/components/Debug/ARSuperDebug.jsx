@@ -76,27 +76,31 @@ function HeadsUpDisplay({ selectedFlavor, isVisible }) {
 
 // [ใหม่] คอมโพเนนต์สำหรับจัดการการใส่ Texture โดยเฉพาะ
 function TextureInjector({ url, model, onTextureApplied }) {
-    // Hook นี้จะถูกเรียกอย่างปลอดภัย เพราะคอมโพเนนต์นี้จะถูก Render ต่อเมื่อ url มีค่าเท่านั้น
     const texture = useTexture(url);
 
     useEffect(() => {
         if (model && texture) {
+            // [แก้ไข] บอก Three.js ว่า Texture นี้ใช้ sRGB color space
+            // เพื่อให้การแสดงผลสีถูกต้องและสดใส
+            texture.encoding = THREE.sRGBEncoding;
+
             model.traverse((child) => {
                 if (child.isMesh && child.material instanceof THREE.MeshStandardMaterial) {
                     child.material.map = texture;
                     child.material.map.flipY = false;
                     child.material.map.needsUpdate = true;
+
+                    // ค่า metalness และ roughness ยังคงเดิม เพื่อให้พื้นผิวไม่สะท้อนแสง
                     child.material.metalness = 0;
                     child.material.roughness = 1;
+
                     child.material.needsUpdate = true;
                 }
             });
-            // เรียก callback function เพื่อบอก Parent ว่าเสร็จแล้ว
             onTextureApplied();
         }
     }, [model, texture, onTextureApplied]);
 
-    // คอมโพเนนต์นี้ไม่ต้อง render อะไรออกมา
     return null;
 }
 
@@ -308,8 +312,8 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
                 <>
                     <canvas ref={canvas2DRef} className="output_canvas_debug" />
                     <Canvas className="ar-canvas-3d-debug" onCreated={(state) => { glRef.current = state.gl; }} gl={{ preserveDrawingBuffer: true }}>
-                        <ambientLight intensity={1.2} />
-                        <directionalLight position={[0, 5, 5]} intensity={1.8} />
+                        <ambientLight intensity={0.5} />
+                        <directionalLight position={[0, 5, 5]} intensity={1} />
                         <Suspense fallback={null}>
                             {allFlavors.map(flavor => {
                                 const isVisible = selectedFlavor?.id === flavor.id;
