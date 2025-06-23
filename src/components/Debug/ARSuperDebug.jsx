@@ -253,10 +253,7 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
     const landmarksRef = useRef(null);
     const glRef = useRef(null);
     const [isMediaPipeReady, setIsMediaPipeReady] = useState(false);
-
-    // [ลบออก] โค้ดส่วนนี้ไม่จำเป็นแล้ว เพราะเราใช้ allFlavors.map() และการจัดการทั้งหมดอยู่ที่ FaceAnchor
-    // const modelUrls = useMemo(() => ...);
-    // if (!modelUrls.bowl) return null;
+    const cameraInstanceRef = useRef(null);
 
     useImperativeHandle(ref, () => ({
         get arCanvas() { return glRef.current?.domElement; },
@@ -269,12 +266,21 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
         });
     }, []);
 
+    // ✨ ย้อนกลับ useEffect นี้ไปเป็นเวอร์ชันที่ทำงานทันที ✨
     useEffect(() => {
         const videoElement = videoRef.current;
+        // เงื่อนไขการหยุดยังคงเดิม
         if (!videoElement || !isMediaPipeReady) return;
+
+        console.log(`(ARSuperDebug) Initializing camera with mode: ${cameraFacingMode}`);
         const faceMesh = mediaPipeService.getInstance();
-        if (!faceMesh) { return; }
-        let camera = null;
+        if (!faceMesh) return;
+
+        // หยุดกล้องเก่า (ยังคงสำคัญ)
+        if (cameraInstanceRef.current) {
+            cameraInstanceRef.current.stop();
+        }
+
         faceMesh.onResults((results) => {
             const canvasElement = canvas2DRef.current;
             if (!canvasElement || !videoElement || videoElement.videoWidth === 0) return;
@@ -287,17 +293,27 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
             landmarksRef.current = results.multiFaceLandmarks?.[0] || null;
             canvasCtx.restore();
         });
-        camera = new Camera(videoElement, {
+
+        // สร้างและเริ่มกล้องทันที
+        const camera = new Camera(videoElement, {
             onFrame: async () => { await faceMesh.send({ image: videoElement }); },
-            width: 1280, height: 720, facingMode: cameraFacingMode
+            width: 1280,
+            height: 720,
+            facingMode: cameraFacingMode
         });
+
         camera.start();
+        cameraInstanceRef.current = camera; // เก็บ instance ไว้
+
+        // Cleanup function
         return () => {
-            camera?.stop();
-            if (mediaPipeService.getInstance()) {
-                mediaPipeService.getInstance().onResults(() => { });
+            console.log("(ARSuperDebug) Cleaning up camera.");
+            if (cameraInstanceRef.current) {
+                cameraInstanceRef.current.stop();
+                cameraInstanceRef.current = null;
             }
         };
+        // Dependency array กลับมาเป็นแบบเดิม
     }, [cameraFacingMode, isMediaPipeReady]);
 
     return (
