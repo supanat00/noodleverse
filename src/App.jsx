@@ -19,35 +19,38 @@ function App() {
   const [appState, setAppState] = useState('requesting_permission'); // 'requesting_permission' | 'loading' | 'ready'
   const [error, setError] = useState(null);
 
-  // ✨ แก้ไขเฉพาะฟังก์ชันนี้ ✨
   const startPreloading = useCallback(async () => {
     try {
-      console.log("Preloading all assets with a minimum display time...");
+      console.log("Preloading all assets SEQUENTIALLY to save memory...");
       setAppState('loading');
 
-      // --- 1. กำหนดเวลาขั้นต่ำ (หน่วยเป็นมิลลิวินาที) ---
-      const MINIMUM_LOADING_TIME = 5000; // 5 วินาที
+      const MINIMUM_LOADING_TIME = 5000;
+      const timerPromise = new Promise(resolve => setTimeout(resolve, MINIMUM_LOADING_TIME));
 
-      // --- 2. สร้าง Promise สำหรับการหน่วงเวลา ---
-      const timerPromise = new Promise(resolve => {
-        setTimeout(resolve, MINIMUM_LOADING_TIME);
-      });
-
-      // --- 3. สร้าง Promise สำหรับการโหลด Assets จริง (เหมือนเดิม) ---
+      // ✨ --- ส่วนที่แก้ไข --- ✨
       const assetsLoadingPromise = (async () => {
         const modelUrls = FLAVORS.flatMap(flavor => Object.values(flavor.models));
         const videoUrls = FLAVORS.map(flavor => flavor.videoPublicId).filter(Boolean);
 
-        const assetPromises = [
-          ...modelUrls.map(url => preloadGLTF(url)),
-          ...videoUrls.map(url => preloadVideo(url)),
-          mediaPipeService.initialize()
-        ];
+        // 1. โหลด MediaPipe ก่อน เพราะสำคัญที่สุด
+        console.log("Preloading MediaPipe...");
+        await mediaPipeService.initialize();
 
-        // เราจะ await ภายใน async function นี้
-        await Promise.all(assetPromises);
-      })(); // <--- สังเกต ( ... )() คือการเรียกใช้ฟังก์ชันทันที (IIFE)
+        // 2. โหลดโมเดลทีละไฟล์
+        console.log("Preloading 3D Models one by one...");
+        for (const url of modelUrls) {
+          console.log(`- Loading ${url}`);
+          await preloadGLTF(url);
+        }
 
+        // 3. โหลดวิดีโอทีละไฟล์
+        console.log("Preloading videos one by one...");
+        for (const url of videoUrls) {
+          console.log(`- Loading ${url}`);
+          await preloadVideo(url);
+        }
+
+      })(); // <--- สิ้นสุดการแก้ไข
       // --- 4. รอให้ "ทั้งสองอย่าง" เสร็จสิ้น ---
       // Promise.all จะรอจนกว่า Promise ที่ช้าที่สุดจะเสร็จ
       // - ถ้าโหลด assets เสร็จใน 2 วิ: มันจะรอ timer อีก 3 วิ -> รวมเป็น 5 วิ

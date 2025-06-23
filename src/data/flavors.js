@@ -27,20 +27,20 @@ export const FLAVORS = [
     },
     adjustments: {
       bowl: {
-        position: [0, 2.2, -3.5], // [x, y, z] ออฟเซ็ตจากจุดยึด (คาง)
+        position: [0, 2.65, -3.5], // [x, y, z] ออฟเซ็ตจากจุดยึด (คาง)
         rotation: [Math.PI, 0, 0], // [x, y, z] การหมุน (เรเดียน)
         scale: 1.35, // ขนาด (ตัวเลขเดียวสำหรับทุกแกน)
         customTexture: "/assets/textures/cup_tex.png",
       },
       prop: {
-        position: [0, 2.2, -3.5], // ขยับ prop ขึ้นมานิดหน่อยและมาข้างหน้า
+        position: [0, 3.5, -3.5], // ขยับ prop ขึ้นมานิดหน่อยและมาข้างหน้า
         rotation: [Math.PI, 0, 0], // [x, y, z] การหมุน (เรเดียน)
         scale: 1.35, // ขนาด (ตัวเลขเดียวสำหรับทุกแกน)
       },
       chopstick: {
-        position: [0, -9, 0], // ตำแหน่งคงที่บนหน้าจอ
+        position: [-0.35, -4.25, 3.5], // ตำแหน่งคงที่บนหน้าจอ
         rotation: [0, 0, 0],
-        scale: 3,
+        scale: 1.35,
       },
     },
   },
@@ -57,17 +57,17 @@ export const FLAVORS = [
     },
     adjustments: {
       bowl: {
-        position: [0, 2.2, 0], // [x, y, z] ออฟเซ็ตจากจุดยึด (คาง)
+        position: [0, 2.65, 0], // [x, y, z] ออฟเซ็ตจากจุดยึด (คาง)
         rotation: [Math.PI, 0, 0], // [x, y, z] การหมุน (เรเดียน)
         scale: 1.35, // ขนาด (ตัวเลขเดียวสำหรับทุกแกน)
       },
       prop: {
-        position: [0, 2.2, 0], // ขยับ prop ขึ้นมานิดหน่อยและมาข้างหน้า
+        position: [0, 3.5, 0], // ขยับ prop ขึ้นมานิดหน่อยและมาข้างหน้า
         rotation: [Math.PI, 0, 0],
         scale: 1.35,
       },
       chopstick: {
-        position: [0.5, -2.5, 2], // ตำแหน่งคงที่บนหน้าจอ
+        position: [0.5, -3, 2], // ตำแหน่งคงที่บนหน้าจอ
         rotation: [0, 0, 0],
         scale: 1,
       },
@@ -86,12 +86,12 @@ export const FLAVORS = [
     },
     adjustments: {
       bowl: {
-        position: [0, 2.2, 0], // [x, y, z] ออฟเซ็ตจากจุดยึด (คาง)
+        position: [0, 2.65, 0], // [x, y, z] ออฟเซ็ตจากจุดยึด (คาง)
         rotation: [Math.PI, 0, 0], // [x, y, z] การหมุน (เรเดียน)
         scale: 1.35, // ขนาด (ตัวเลขเดียวสำหรับทุกแกน)
       },
       prop: {
-        position: [0, 2.2, 0], // ขยับ prop ขึ้นมานิดหน่อยและมาข้างหน้า
+        position: [0, 3.5, 0], // ขยับ prop ขึ้นมานิดหน่อยและมาข้างหน้า
         rotation: [Math.PI, 0, 0],
         scale: 1.35,
       },

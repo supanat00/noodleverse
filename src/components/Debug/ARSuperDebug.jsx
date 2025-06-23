@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, Suspense, useMemo, forwardRef, useImperativeHandle, useState } from "react";
+import React, { useRef, useEffect, Suspense, useMemo, forwardRef, useImperativeHandle, useState, useCallback } from "react";
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useGLTF, Preload, useVideoTexture, useTexture } from '@react-three/drei';
@@ -32,8 +32,8 @@ function HeadsUpDisplay({ selectedFlavor, isVisible }) {
     // การคำนวณขนาดและตำแหน่งทั้งหมดเหมือนเดิม
     const remToPx = 16;
     const topMarginInRem = 2;
-    const containerMaxWidthInPx = 450;
-    const containerWidthPercent = 0.90;
+    const containerMaxWidthInPx = 375;
+    const containerWidthPercent = 1;
     const logoWidthInPx = 60;
     const logoMarginInPx = 15;
     const pxToWorldRatio = viewport.width / size.width;
@@ -80,23 +80,33 @@ function TextureInjector({ url, model, onTextureApplied }) {
 
     useEffect(() => {
         if (model && texture) {
-            // [แก้ไข] บอก Three.js ว่า Texture นี้ใช้ sRGB color space
-            // เพื่อให้การแสดงผลสีถูกต้องและสดใส
-            texture.encoding = THREE.sRGBEncoding;
+            texture.colorSpace = THREE.SRGBColorSpace;
 
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+
+            texture.repeat.set(1, 1);
+
+            texture.flipY = false;
+
+            // ✨ แก้ไข Logic การ Traverse ✨
             model.traverse((child) => {
-                if (child.isMesh && child.material instanceof THREE.MeshStandardMaterial) {
-                    child.material.map = texture;
-                    child.material.map.flipY = false;
-                    child.material.map.needsUpdate = true;
+                if (child.isMesh && child.name.includes('mama_cup')) {
+                    if (child.material instanceof THREE.MeshStandardMaterial) {
+                        child.material.map = texture;
+                        // เราตั้งค่า flipY ที่ texture object โดยตรงแล้ว ไม่ต้องตั้งที่นี่ซ้ำ
+                        // child.material.map.flipY = false;
 
-                    // ค่า metalness และ roughness ยังคงเดิม เพื่อให้พื้นผิวไม่สะท้อนแสง
-                    child.material.metalness = 0;
-                    child.material.roughness = 0;
+                        // สำคัญ: ต้องสั่ง needsUpdate ที่ตัว texture ด้วย
+                        child.material.map.needsUpdate = true;
 
-                    child.material.needsUpdate = true;
+                        child.material.metalness = 0;
+                        child.material.roughness = 0.2;
+                        child.material.needsUpdate = true;
+                    }
                 }
             });
+
             onTextureApplied();
         }
     }, [model, texture, onTextureApplied]);
@@ -133,8 +143,15 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
     const bowlModel = useMemo(() => originalBowl.clone(), [originalBowl]);
     const propModel = useMemo(() => originalProp.clone(), [originalProp]);
     const chopstickModel = useMemo(() => originalChopstick.clone(), [originalChopstick]);
+
     const customTextureUrl = bowlAdjust.customTexture;
-    const [isBowlReady, setIsBowlReady] = useState(!customTextureUrl);
+    const [isReadyToRender, setIsReadyToRender] = useState(!customTextureUrl);
+
+    // ใช้ callback ที่ memoized เพื่อป้องกันการ re-render ของ TextureInjector
+    const handleTextureApplied = useCallback(() => {
+        setIsReadyToRender(true);
+    }, []);
+
     const propMixer = useMemo(() => new THREE.AnimationMixer(propModel), [propModel]);
     const propActions = useMemo(() => {
         if (propAnims && propAnims.length > 0) { const action = propMixer.clipAction(propAnims[0]); action.play(); action.paused = true; return { main: action }; }
@@ -226,10 +243,12 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
     // เพราะเราจะควบคุมการแสดงผลจากใน useFrame
     return (
         <>
+            {/* ส่ง callback ที่ memoized เข้าไป */}
             {customTextureUrl && (
-                <TextureInjector url={customTextureUrl} model={bowlModel} onTextureApplied={() => setIsBowlReady(true)} />
+                <TextureInjector url={customTextureUrl} model={bowlModel} onTextureApplied={handleTextureApplied} />
             )}
-            {isBowlReady && (
+            {/* เปลี่ยนเงื่อนไขมาใช้ state เดียว */}
+            {isReadyToRender && (
                 <>
                     <group ref={groupRef} visible={false}>
                         <primitive object={bowlModel} position={bowlAdjust.position} rotation={bowlAdjust.rotation} scale={bowlAdjust.scale} />
@@ -272,38 +291,46 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
         // เงื่อนไขการหยุดยังคงเดิม
         if (!videoElement || !isMediaPipeReady) return;
 
-        console.log(`(ARSuperDebug) Initializing camera with mode: ${cameraFacingMode}`);
-        const faceMesh = mediaPipeService.getInstance();
-        if (!faceMesh) return;
+        let camera = null;
 
-        // หยุดกล้องเก่า (ยังคงสำคัญ)
+        const startNewCamera = () => {
+            console.log(`(ARSuperDebug) Initializing camera with mode: ${cameraFacingMode}`);
+            const faceMesh = mediaPipeService.getInstance();
+            if (!faceMesh) return;
+
+            faceMesh.onResults((results) => {
+                const canvasElement = canvas2DRef.current;
+                if (!canvasElement || !videoElement || videoElement.videoWidth === 0) return;
+                const canvasCtx = canvasElement.getContext("2d");
+                canvasElement.width = videoElement.videoWidth;
+                canvasElement.height = videoElement.videoHeight;
+                canvasCtx.save();
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+                landmarksRef.current = results.multiFaceLandmarks?.[0] || null;
+                canvasCtx.restore();
+            });
+
+            // สร้างและเริ่มกล้องทันที
+            camera = new Camera(videoElement, {
+                onFrame: async () => { await faceMesh.send({ image: videoElement }); },
+                width: 1280,
+                height: 720,
+                facingMode: cameraFacingMode
+            });
+
+            camera.start();
+            cameraInstanceRef.current = camera;
+        };
+
+        // หยุดกล้องเก่าก่อนเริ่มกล้องใหม่
         if (cameraInstanceRef.current) {
-            cameraInstanceRef.current.stop();
+            cameraInstanceRef.current.stop().then(() => {
+                startNewCamera();
+            });
+        } else {
+            startNewCamera();
         }
-
-        faceMesh.onResults((results) => {
-            const canvasElement = canvas2DRef.current;
-            if (!canvasElement || !videoElement || videoElement.videoWidth === 0) return;
-            const canvasCtx = canvasElement.getContext("2d");
-            canvasElement.width = videoElement.videoWidth;
-            canvasElement.height = videoElement.videoHeight;
-            canvasCtx.save();
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-            landmarksRef.current = results.multiFaceLandmarks?.[0] || null;
-            canvasCtx.restore();
-        });
-
-        // สร้างและเริ่มกล้องทันที
-        const camera = new Camera(videoElement, {
-            onFrame: async () => { await faceMesh.send({ image: videoElement }); },
-            width: 1280,
-            height: 720,
-            facingMode: cameraFacingMode
-        });
-
-        camera.start();
-        cameraInstanceRef.current = camera; // เก็บ instance ไว้
 
         // Cleanup function
         return () => {
@@ -323,7 +350,7 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
                 <>
                     <canvas ref={canvas2DRef} className="output_canvas_debug" />
                     <Canvas className="ar-canvas-3d-debug" onCreated={(state) => { glRef.current = state.gl; }} gl={{ preserveDrawingBuffer: true }}>
-                        <ambientLight intensity={1} />
+                        <ambientLight intensity={0.8} />
                         <directionalLight position={[0, 5, 5]} intensity={1} />
                         <Suspense fallback={null}>
                             {allFlavors.map(flavor => {

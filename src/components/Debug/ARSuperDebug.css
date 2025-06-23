@@ -28,7 +28,8 @@
  * เราจะให้มันมีขนาดเท่ากับ parent (เต็มจอ) และโปร่งใส
  * แต่ "จะไม่พลิกกระจกที่นี่"
  */
-.ar-canvas-3d-debug {
+
+/* .ar-canvas-3d-debug {
   position: absolute;
   top: 0;
   left: 0;
@@ -36,4 +37,20 @@
   pointer-events: none;
   background: transparent;
   transform: scaleX(1);
+} */
+
+.ar-canvas-3d-debug {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* ตั้งค่าให้มันมีขนาดใหญ่กว่าจอ โดยยึดอัตราส่วน 9:16 */
+  width: 100vw;
+  height: calc(100vw * 16 / 9); /* คำนวณความสูงให้เป็น 16:9 จากความกว้าง */
+
+  /* ถ้าจอผู้ใช้ยาวมากๆ (สูงกว่า 16:9) ให้ยึดความสูงแทน */
+  min-height: 100vh;
+  min-width: calc(100vh * 9 / 16); /* คำนวณความกว้างจากความสูง */
+
+  transform: translate(-50%, -50%); /* จัดให้อยู่กึ่งกลาง */
+  z-index: 10;
 }

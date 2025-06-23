@@ -13,123 +13,101 @@ const VideoIcon = () => <svg width="24px" height="24px" viewBox="0 0 24 24" fill
 
 const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
 
-    // --- State Management ---
     const [mode, setMode] = useState('photo');
     const [isRecording, setIsRecording] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
     const [preview, setPreview] = useState(null);
 
-    // --- Refs ---
     const animationFrameIdRef = useRef(null);
-
-    // Refs for mp4-muxer
     const muxerRef = useRef(null);
     const videoEncoderRef = useRef(null);
     const audioEncoderRef = useRef(null);
-    const isRecordingRef = useRef(false); // ใช้ ref เพื่อเช็คสถานะใน rAF loop
+    const isRecordingRef = useRef(false);
+    const recordTimerRef = useRef(null);
 
-    /**
-     * ถ่ายภาพนิ่งโดยการรวมภาพจาก camera (background) และ AR (foreground)
-     */
     const handleTakePhoto = useCallback(() => {
-        console.log("ACTION: Take Photo");
-
+        console.log("ACTION: Take Photo (Fit Height, Center Horizontally)");
         const arCanvas = arSystemRef.current?.arCanvas;
         const cameraCanvas = arSystemRef.current?.cameraCanvas;
 
         if (!arCanvas || !cameraCanvas) {
-            console.error("Canvas refs not available for capture.");
             alert("เกิดข้อผิดพลาด: ไม่สามารถถ่ายภาพได้");
             return;
         }
 
         const finalCanvas = document.createElement('canvas');
         const ctx = finalCanvas.getContext('2d');
-        const isLandscape = window.innerWidth > window.innerHeight;
-        finalCanvas.width = isLandscape ? 1280 : 720;
-        finalCanvas.height = isLandscape ? 720 : 1280;
+
+        const outputWidth = 1080;
+        const outputHeight = 1920;
+        finalCanvas.width = outputWidth;
+        finalCanvas.height = outputHeight;
 
         requestAnimationFrame(() => {
-            // วาด BG: Camera (กลับด้านเหมือนกระจก)
-            if (cameraCanvas) {
-                ctx.save();
-                ctx.translate(finalCanvas.width, 0);
-                ctx.scale(-1, 1);
-
-                const sW = cameraCanvas.width;
-                const sH = cameraCanvas.height;
-                const sR = sW / sH;
-                const tR = finalCanvas.width / finalCanvas.height;
-                let dW, dH, oX, oY;
-                if (sR > tR) {
-                    dH = finalCanvas.height;
-                    dW = dH * sR;
-                } else {
-                    dW = finalCanvas.width;
-                    dH = dW / sR;
-                }
-                oX = (finalCanvas.width - dW) / 2;
-                oY = (finalCanvas.height - dH) / 2;
-
-                ctx.drawImage(cameraCanvas, oX, oY, dW, dH);
-                ctx.restore();
+            // --- 1. วาด BG (ภาพจากกล้อง) ให้เต็มพื้นที่ 9:16 ก่อน (เหมือนเดิม) ---
+            const cameraAspectRatio = cameraCanvas.width / cameraCanvas.height;
+            let bgWidth = outputWidth;
+            let bgHeight = bgWidth / cameraAspectRatio;
+            if (bgHeight < outputHeight) {
+                bgHeight = outputHeight;
+                bgWidth = bgHeight * cameraAspectRatio;
             }
+            const bgX = (outputWidth - bgWidth) / 2;
+            const bgY = (outputHeight - bgHeight) / 2;
+            ctx.save();
+            ctx.translate(finalCanvas.width, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(cameraCanvas, bgX, bgY, bgWidth, bgHeight);
+            ctx.restore();
 
-            // วาด FG: AR Scene
-            ctx.drawImage(arCanvas, 0, 0, finalCanvas.width, finalCanvas.height);
+            // --- ✨ 2. [FIX] วาด AR Scene โดยยึด "ความสูง" เป็นหลัก ✨ ---
+            const arAspectRatio = arCanvas.width / arCanvas.height;
 
-            // ใช้ Data URL สำหรับภาพนิ่ง มันง่ายและเร็วพอ
-            const dataURL = finalCanvas.toDataURL('image/png', 0.9); // Quality 90%
+            // คำนวณขนาดใหม่ของ arCanvas ที่จะวาดลงไป โดยยึด "ความสูง" เป็นหลัก
+            const drawHeight = outputHeight; // กำหนดให้ความสูงเต็ม 1920px
+            const drawWidth = drawHeight * arAspectRatio; // คำนวณความกว้างตามสัดส่วนเดิม
+
+            // คำนวณตำแหน่งในแนวนอน เพื่อให้ภาพอยู่กึ่งกลาง
+            const drawX = (outputWidth - drawWidth) / 2;
+
+            // วาด arCanvas ลงไปตรงกลาง โดยมีขนาดที่ถูกต้อง ไม่ล้นในแนวตั้ง
+            ctx.drawImage(arCanvas, drawX, 0, drawWidth, drawHeight);
+
+            // --- 3. สร้าง Data URL ---
+            const dataURL = finalCanvas.toDataURL('image/png', 0.9);
             setPreview({ type: 'image', src: dataURL });
         });
     }, [arSystemRef]);
 
-    // ✂️✂️✂️ เริ่มคัดลอกตั้งแต่ตรงนี้ ✂️✂️✂️
-
-    // --- ฟังก์ชันอัดวิดีโอ (เขียนใหม่ทั้งหมดด้วย mp4-muxer) ---
-
-    // ฟังก์ชันสำหรับ "เริ่ม" การอัดวิดีโอ
     const startRecording = useCallback(async () => {
-        console.log("ACTION: Start Recording (mp4-muxer)");
+        console.log("ACTION: Start Recording with Real-time Timestamp");
 
         if (!('VideoEncoder' in window)) {
-            alert("ขออภัย อุปกรณ์ของคุณไม่รองรับการอัดวิดีโอ (VideoEncoder API is not available)");
-            setIsRecording(false);
-            isRecordingRef.current = false;
-            return;
+            alert("ขออภัย อุปกรณ์ของคุณไม่รองรับการอัดวิดีโอ");
+            return false;
         }
+
+        let videoWidth = 720;  // ลดความกว้างลงเป็น 720p
+        let videoHeight = 1280; // ลดความสูงลงเป็น 720p (แนวตั้ง)
 
         const arCanvas = arSystemRef.current?.arCanvas;
         const cameraCanvas = arSystemRef.current?.cameraCanvas;
         if (!arCanvas || !cameraCanvas) {
             alert("เกิดข้อผิดพลาด: ไม่สามารถเริ่มอัดวิดีโอได้");
-            setIsRecording(false);
-            isRecordingRef.current = false;
-            return;
+            return false;
         }
 
-        const isLandscape = window.innerWidth > window.innerHeight;
-        const videoWidth = isLandscape ? 1280 : 720;
-        const videoHeight = isLandscape ? 720 : 1280;
-        const frameRate = 30;
+        // ตรวจสอบและบังคับให้เป็นเลขคู่ (ยังคงสำคัญ)
+        if (videoWidth % 2 !== 0) videoWidth++;
+        if (videoHeight % 2 !== 0) videoHeight++;
 
-        // 1. Setup Muxer: ตัวประกอบร่างไฟล์ MP4
         muxerRef.current = new Muxer({
             target: new ArrayBufferTarget(),
-            video: {
-                codec: 'avc',
-                width: videoWidth,
-                height: videoHeight,
-            },
-            audio: {
-                codec: 'aac',
-                sampleRate: 44100,
-                numberOfChannels: 1,
-            },
-            // [FIX] ใช้ 'in-memory' ซึ่งเป็นค่าที่ถูกต้องสำหรับ fastStart
+            video: { codec: 'avc', width: videoWidth, height: videoHeight },
+            audio: { codec: 'aac', sampleRate: 44100, numberOfChannels: 1 },
             fastStart: 'in-memory',
         });
 
-        // 2. Setup VideoEncoder
         videoEncoderRef.current = new VideoEncoder({
             output: (chunk, meta) => muxerRef.current.addVideoChunk(chunk, meta),
             error: (e) => console.error('VideoEncoder error:', e),
@@ -138,11 +116,9 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
             codec: 'avc1.42001f',
             width: videoWidth,
             height: videoHeight,
-            framerate: frameRate,
-            bitrate: 3_000_000, // 3 Mbps
+            bitrate: 3_000_000,
         });
 
-        // 3. Setup AudioEncoder สำหรับ Silent Track
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         audioEncoderRef.current = new AudioEncoder({
             output: (chunk, meta) => muxerRef.current.addAudioChunk(chunk, meta),
@@ -155,7 +131,7 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
             bitrate: 96000,
         });
 
-        const audioBuffer = audioContext.createBuffer(1, audioContext.sampleRate, audioContext.sampleRate);
+        const audioBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 1, audioContext.sampleRate);
         const audioData = new AudioData({
             timestamp: 0,
             data: audioBuffer.getChannelData(0),
@@ -167,106 +143,118 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
         audioEncoderRef.current.encode(audioData);
         audioData.close();
 
-        // 4. เริ่ม Loop การวาดและ Encode
-        let frameCounter = 0;
+        let recordingStartTime = null;
         const recordingCanvas = document.createElement('canvas');
         recordingCanvas.width = videoWidth;
         recordingCanvas.height = videoHeight;
         const ctx = recordingCanvas.getContext('2d');
 
-        const processFrame = () => {
+        const processFrame = (currentTime) => {
             if (!isRecordingRef.current) return;
+            if (recordingStartTime === null) recordingStartTime = currentTime;
 
-            // วาด BG (Camera) และ FG (AR)
-            if (cameraCanvas) {
-                ctx.save();
-                ctx.translate(videoWidth, 0);
-                ctx.scale(-1, 1);
-                const sW = cameraCanvas.width, sH = cameraCanvas.height;
-                const sR = sW / sH;
-                const tR = videoWidth / videoHeight;
-                let dW, dH;
-                if (sR > tR) { dH = videoHeight; dW = dH * sR; }
-                else { dW = videoWidth; dH = dW / sR; }
-                const oX = (videoWidth - dW) / 2, oY = (videoHeight - dH) / 2;
-                ctx.drawImage(cameraCanvas, oX, oY, dW, dH);
-                ctx.restore();
+            // 1. วาด BG (ภาพจากกล้อง) ให้เต็มและอยู่กลาง (เหมือน handleTakePhoto)
+            const cameraAspectRatio = cameraCanvas.width / cameraCanvas.height;
+            let bgWidth = videoWidth;
+            let bgHeight = bgWidth / cameraAspectRatio;
+            if (bgHeight < videoHeight) {
+                bgHeight = videoHeight;
+                bgWidth = bgHeight * cameraAspectRatio;
             }
-            ctx.drawImage(arCanvas, 0, 0, videoWidth, videoHeight);
+            const bgX = (videoWidth - bgWidth) / 2;
+            const bgY = (videoHeight - bgHeight) / 2;
+            ctx.save();
+            ctx.translate(videoWidth, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(cameraCanvas, bgX, bgY, bgWidth, bgHeight);
+            ctx.restore();
 
-            // ส่ง Frame ไป Encode
+            // 2. วาด AR Scene โดยยึด "ความสูง" เป็นหลัก (เหมือน handleTakePhoto)
+            const arAspectRatio = arCanvas.width / arCanvas.height;
+            const drawHeight = videoHeight;
+            const drawWidth = drawHeight * arAspectRatio;
+            const drawX = (videoWidth - drawWidth) / 2;
+            ctx.drawImage(arCanvas, drawX, 0, drawWidth, drawHeight);
+
+            // 3. ส่ง Frame ไป Encode (เหมือนเดิม)
             if (videoEncoderRef.current?.state === 'configured') {
-                const timestamp = (frameCounter * 1_000_000) / frameRate;
+                const elapsedTimeMs = currentTime - recordingStartTime;
+                const timestamp = Math.round(elapsedTimeMs * 1000);
                 const videoFrame = new VideoFrame(recordingCanvas, { timestamp });
-                videoEncoderRef.current.encode(videoFrame, { keyFrame: frameCounter % frameRate === 0 });
+                videoEncoderRef.current.encode(videoFrame);
                 videoFrame.close();
-                frameCounter++;
             }
 
             animationFrameIdRef.current = requestAnimationFrame(processFrame);
         };
         requestAnimationFrame(processFrame);
+        return true;
     }, [arSystemRef]);
 
-
-    // ฟังก์ชันสำหรับ "หยุด" การอัดวิดีโอ
     const stopRecording = useCallback(async () => {
-        console.log("ACTION: Stop Recording (mp4-muxer)");
-        isRecordingRef.current = false; // สั่งให้ loop การวาดหยุด
+        if (!isRecordingRef.current) return;
 
-        if (animationFrameIdRef.current) {
-            cancelAnimationFrame(animationFrameIdRef.current);
-            animationFrameIdRef.current = null;
-        }
+        console.log("ACTION: Stop Recording & Queue Processing...");
+        isRecordingRef.current = false;
 
-        // รอให้ Encoder ทำงานที่ค้างอยู่ให้เสร็จ
-        if (videoEncoderRef.current?.state === 'configured') {
-            await videoEncoderRef.current.flush().catch(e => console.error("Video flush error", e));
-        }
-        if (audioEncoderRef.current?.state === 'configured') {
-            await audioEncoderRef.current.flush().catch(e => console.error("Audio flush error", e));
-        }
+        // 1. หยุด Timer และ Animation Frame ทันที
+        clearTimeout(recordTimerRef.current);
+        cancelAnimationFrame(animationFrameIdRef.current);
 
-        // ปิด Muxer เพื่อเขียน Metadata (สำคัญที่สุด)
-        if (muxerRef.current) {
-            muxerRef.current.finalize();
-            const { buffer } = muxerRef.current.target;
-            const videoBlob = new Blob([buffer], { type: 'video/mp4' });
-            const videoUrl = URL.createObjectURL(videoBlob);
-            setPreview({ type: 'video', src: videoUrl });
-        }
+        // 2. ตั้ง State ให้แสดง UI "กำลังประมวลผล"
+        setIsProcessing(true);
 
-        // Cleanup
-        videoEncoderRef.current = null;
-        audioEncoderRef.current = null;
-        muxerRef.current = null;
-    }, []);
+        // 3. ใช้ setTimeout(..., 0) หรือ requestAnimationFrame เพื่อ "หน่วง" งานหนักๆ
+        //    เพื่อให้ React มีเวลา Render UI ใหม่ก่อน
+        requestAnimationFrame(async () => {
+            console.log("Processing video file...");
 
+            if (videoEncoderRef.current?.state === 'configured') await videoEncoderRef.current.flush().catch(console.error);
+            if (audioEncoderRef.current?.state === 'configured') await audioEncoderRef.current.flush().catch(console.error);
 
-    // ฟังก์ชันหลักที่ถูกเรียกโดยปุ่ม ซึ่งจะทำหน้าที่แค่สลับ State และเรียกฟังก์ชันที่ถูกต้อง
-    const handleToggleRecording = useCallback(() => {
-        // ใช้ Functional Update เพื่อความปลอดภัยในการอ่าน state ล่าสุด
-        setIsRecording(prevIsRecording => {
-            const nextIsRecording = !prevIsRecording;
-            isRecordingRef.current = nextIsRecording; // อัปเดต ref ไปพร้อมกัน
-
-            if (nextIsRecording) {
-                startRecording();
-            } else {
-                stopRecording();
+            if (muxerRef.current) {
+                muxerRef.current.finalize();
+                const { buffer } = muxerRef.current.target;
+                const videoBlob = new Blob([buffer], { type: 'video/mp4' });
+                const videoUrl = URL.createObjectURL(videoBlob);
+                setPreview({ type: 'video', src: videoUrl });
             }
 
-            return nextIsRecording; // คืนค่า state ใหม่
-        });
-    }, [startRecording, stopRecording]);
+            // Cleanup refs
+            videoEncoderRef.current = null;
+            audioEncoderRef.current = null;
+            muxerRef.current = null;
 
-    // ✂️✂️✂️ สิ้นสุดการคัดลอกตรงนี้ ✂️✂️✂️
+            // 4. เมื่อประมวลผลเสร็จ ให้ซ่อน UI
+            setIsProcessing(false);
+        });
+    }, []);
+
+    // --- ฟังก์ชัน Toggle (ปรับปรุงเล็กน้อย) ---
+    const handleToggleRecording = useCallback(() => {
+        if (isRecording) {
+            // ถ้ากำลังอัดอยู่ ให้เรียก stopRecording
+            stopRecording();
+            setIsRecording(false); // อัปเดต state ทันที
+        } else {
+            // ถ้าจะเริ่มอัด
+            startRecording().then(success => {
+                if (success) {
+                    setIsRecording(true);
+                    isRecordingRef.current = true;
+                    recordTimerRef.current = setTimeout(stopRecording, 30000);
+                }
+            });
+        }
+    }, [isRecording, startRecording, stopRecording]);
+
     // --- Utility Functions ---
     const handleSwitchCamera = useCallback(() => onSwitchCamera(cameraFacingMode === 'user' ? 'environment' : 'user'), [cameraFacingMode, onSwitchCamera]);
     const handleModeChange = useCallback((e) => setMode(e.target.checked ? 'video' : 'photo'), []);
 
     // --- Preview Action Handlers ---
     const handleRetry = useCallback(() => setPreview(null), []);
+
     const handleDownload = useCallback(() => {
         if (!preview?.src) return;
         const a = document.createElement('a');
@@ -328,7 +316,15 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
 
     return (
         <div className="ui-overlay">
-            <div className={`camera-controls ${preview ? 'hidden' : ''}`}>
+            {/* ✨ 1. เพิ่ม UI สำหรับแสดงสถานะ Processing ✨ */}
+            {isProcessing && (
+                <div className="processing-overlay">
+                    <div className="spinner"></div>
+                    <p>กำลังประมวลผล...</p>
+                </div>
+            )}
+
+            <div className={`camera-controls ${preview || isRecording || isProcessing ? 'hidden' : ''}`}>
                 <button className="action-button side-button-left" onClick={handleSwitchCamera} aria-label="Switch Camera">
                     <img src={iconSwitchCamera} alt="Switch Camera" className={`action-icon ${cameraFacingMode !== 'user' ? 'flipping' : ''}`} />
                 </button>
