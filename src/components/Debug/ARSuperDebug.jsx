@@ -105,84 +105,78 @@ function TextureInjector({ url, model, onTextureApplied }) {
 }
 
 // ====================================================================
-// FaceAnchor Component ที่มีการแก้ไขตามที่ต้องการ
+// FaceAnchor Component (The Final, Corrected Version)
 // ====================================================================
 function FaceAnchor({ landmarksRef, flavor, isVisible }) {
     const groupRef = useRef();
     const chopstickGroupRef = useRef();
     const { camera } = useThree();
 
-    const defaultAdjust = { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 };
-    const bowlAdjust = flavor.adjustments?.bowl || defaultAdjust;
-    const propAdjust = flavor.adjustments?.prop || defaultAdjust;
-    const chopstickAdjust = flavor.adjustments?.chopstick || defaultAdjust;
+    // [ใหม่] Ref สำหรับจำว่าโมเดลเคยถูกวางบนใบหน้าแล้วหรือยัง
+    const hasBeenPlaced = useRef(false);
 
-    const { scene: bowlModel } = useGLTF(flavor.models.bowl);
-    const { scene: propModel, animations: propAnims } = useGLTF(flavor.models.prop);
-    const { scene: chopstickModel, animations: chopstickAnims } = useGLTF(flavor.models.chopstick);
+    // [ใหม่] เมื่อ isVisible เปลี่ยนเป็น false (ผู้ใช้เลือกรสอื่น)
+    // เราต้องรีเซ็ตสถานะ `hasBeenPlaced` ด้วย
+    useEffect(() => {
+        if (!isVisible) {
+            hasBeenPlaced.current = false;
+        }
+    }, [isVisible]);
 
+    // --- ส่วนของการโหลดโมเดลและ setup อื่นๆ เหมือนเดิมทั้งหมด ---
+    const bowlAdjust = flavor.adjustments?.bowl
+    const propAdjust = flavor.adjustments?.prop
+    const chopstickAdjust = flavor.adjustments?.chopstick
+    const { scene: originalBowl } = useGLTF(flavor.models.bowl);
+    const { scene: originalProp, animations: propAnims } = useGLTF(flavor.models.prop);
+    const { scene: originalChopstick, animations: chopstickAnims } = useGLTF(flavor.models.chopstick);
+    const bowlModel = useMemo(() => originalBowl.clone(), [originalBowl]);
+    const propModel = useMemo(() => originalProp.clone(), [originalProp]);
+    const chopstickModel = useMemo(() => originalChopstick.clone(), [originalChopstick]);
     const customTextureUrl = bowlAdjust.customTexture;
-
     const [isBowlReady, setIsBowlReady] = useState(!customTextureUrl);
-
     const propMixer = useMemo(() => new THREE.AnimationMixer(propModel), [propModel]);
     const propActions = useMemo(() => {
-        if (propAnims?.length > 0) {
-            const action = propMixer.clipAction(propAnims[0]);
-            action.play();
-            action.paused = true; // prop ยังคงรอการอ้าปาก
-            return { main: action };
-        }
+        if (propAnims && propAnims.length > 0) { const action = propMixer.clipAction(propAnims[0]); action.play(); action.paused = true; return { main: action }; }
         return { main: null };
     }, [propAnims, propMixer]);
-
     const chopstickMixer = useMemo(() => new THREE.AnimationMixer(chopstickModel), [chopstickModel]);
-
     const chopstickActions = useMemo(() => {
-        if (chopstickAnims?.length > 0) {
-            const action = chopstickMixer.clipAction(chopstickAnims[0]);
-            action.play();
-            // [แก้ไข] ตั้งค่าให้เล่นตลอดเวลาโดยไม่ pause
-            action.paused = false;
-            return { main: action };
-        }
+        if (chopstickAnims && chopstickAnims.length > 0) { const action = chopstickMixer.clipAction(chopstickAnims[0]); action.play(); action.paused = false; return { main: action }; }
         return { main: null };
     }, [chopstickAnims, chopstickMixer]);
-
     const lastMouthState = useRef("Close");
-
-    // [ใหม่] สร้าง Ref สำหรับเก็บค่าการปรับขนาด
-    const initialFaceWidth = useRef(null);
-
     useEffect(() => { propModel.visible = false; }, [propModel]);
 
     useFrame((state, delta) => {
-        if (!isVisible) return;
-
+        const group = groupRef.current;
+        const chopstickGroup = chopstickGroupRef.current;
         const landmarks = landmarksRef.current;
-        if (!groupRef.current || !chopstickGroupRef.current) return;
 
-        // ถ้าไม่เจอใบหน้า ให้ซ่อนโมเดลและรีเซ็ตค่าการปรับขนาด
-        if (!landmarks) {
-            groupRef.current.visible = false;
-            chopstickGroupRef.current.visible = false;
-            initialFaceWidth.current = null; // รีเซ็ตเพื่อให้คำนวณใหม่เมื่อเจอหน้าอีกครั้ง
+        // ถ้า group ยังไม่พร้อม หรือรสชาตินี้ไม่ถูกเลือกอยู่ ให้หยุดทำงาน
+        if (!group || !chopstickGroup || !isVisible) {
             return;
         }
 
-        groupRef.current.visible = true;
-        chopstickGroupRef.current.visible = true;
+        // ถ้าหาใบหน้าไม่เจอ
+        if (!landmarks) {
+            // ซ่อนโมเดลไว้
+            group.visible = false;
+            chopstickGroup.visible = false;
+            // รีเซ็ตสถานะ "เคยวางแล้ว" เพื่อให้ครั้งหน้าที่เจอหน้า จะได้วาร์ปไปใหม่
+            hasBeenPlaced.current = false;
+            return;
+        }
 
+        // --- คำนวณตำแหน่งและทิศทางการหมุน (เหมือนเดิม) ---
         const anchorPoint = landmarks[152];
+        const target = new THREE.Vector3();
         if (anchorPoint) {
-            const target = new THREE.Vector3();
             const screenX = (-anchorPoint.x + 0.5) * 2;
             const screenY = -(anchorPoint.y - 0.5) * 2;
             state.raycaster.setFromCamera({ x: screenX, y: screenY }, camera);
             state.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), target);
-            groupRef.current.position.lerp(target, 0.5);
         }
-
         const forehead = new THREE.Vector3(landmarks[10].x, landmarks[10].y, landmarks[10].z);
         const chin = new THREE.Vector3(landmarks[152].x, landmarks[152].y, landmarks[152].z);
         const leftCheek = new THREE.Vector3(landmarks[234].x, landmarks[234].y, landmarks[234].z);
@@ -193,10 +187,24 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
         const rotationMatrix = new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis);
         const faceQuaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
 
-        groupRef.current.quaternion.slerp(faceQuaternion, 0.5);
+        // --- ✨ Logic การวางและแสดงผลที่สมบูรณ์แบบ ✨ ---
+        if (!hasBeenPlaced.current) {
+            // ครั้งแรกที่เจอหน้า: วาร์ปไปที่ตำแหน่งและทิศทางนั้นทันที
+            group.position.copy(target);
+            group.quaternion.copy(faceQuaternion);
+            hasBeenPlaced.current = true; // ตั้งธงว่าวางแล้ว
 
+            // จากนั้นค่อยสั่งให้ "แสดงผล"
+            group.visible = true;
+            chopstickGroup.visible = true;
+        } else {
+            // ตั้งแต่ครั้งที่สองเป็นต้นไป: ใช้ lerp เพื่อความนุ่มนวล
+            group.position.lerp(target, 0.5);
+            group.quaternion.slerp(faceQuaternion, 0.5);
+        }
 
-
+        // --- Logic การอ้าปากและ Animation (เหมือนเดิม) ---
+        // ... (ส่วนนี้ไม่มีการเปลี่ยนแปลง) ...
         const upperLip = landmarks[13];
         const lowerLip = landmarks[14];
         if (upperLip && lowerLip) {
@@ -207,39 +215,27 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
                 lastMouthState.current = currentMouthState;
                 const isMouthOpen = currentMouthState === "Open";
                 if (propActions.main) { propModel.visible = isMouthOpen; propActions.main.paused = !isMouthOpen; }
-
-                // [ลบออก] ไม่ต้องควบคุมการ pause ของตะเกียบตามการอ้าปาก
-                // if (chopstickActions.main) { ... }
             }
         }
-
-        // อัปเดต Mixer ทั้งสองตัวเสมอ
         if (propMixer) propMixer.update(delta);
-        if (chopstickMixer) chopstickMixer.update(delta); // mixer ของตะเกียบจะทำงานตลอดเวลา
+        if (chopstickMixer) chopstickMixer.update(delta);
     });
 
+    // --- ส่วน JSX ที่ return เหมือนเดิม ---
+    // สังเกตว่า group ยังคงเริ่มต้นด้วย visible={false} ซึ่งถูกต้องแล้ว!
+    // เพราะเราจะควบคุมการแสดงผลจากใน useFrame
     return (
         <>
             {customTextureUrl && (
-                <TextureInjector
-                    url={customTextureUrl}
-                    model={bowlModel}
-                    onTextureApplied={() => setIsBowlReady(true)}
-                />
+                <TextureInjector url={customTextureUrl} model={bowlModel} onTextureApplied={() => setIsBowlReady(true)} />
             )}
-
             {isBowlReady && (
                 <>
                     <group ref={groupRef} visible={false}>
-                        {/* bowlModel ยังคงต้อง clone เพราะเรามีการแก้ไข material ของมัน */}
-                        <primitive object={bowlModel.clone()} position={bowlAdjust.position} rotation={bowlAdjust.rotation} scale={bowlAdjust.scale} />
-
-                        {/* [แก้ไข] ใช้ propModel ต้นฉบับโดยตรง ไม่ต้อง clone */}
+                        <primitive object={bowlModel} position={bowlAdjust.position} rotation={bowlAdjust.rotation} scale={bowlAdjust.scale} />
                         <primitive object={propModel} position={propAdjust.position} rotation={propAdjust.rotation} scale={propAdjust.scale} />
                     </group>
-
                     <group ref={chopstickGroupRef} position={chopstickAdjust.position} rotation={chopstickAdjust.rotation} scale={chopstickAdjust.scale} visible={false}>
-                        {/* [แก้ไข] ใช้ chopstickModel ต้นฉบับโดยตรง ไม่ต้อง clone */}
                         <primitive object={chopstickModel} />
                     </group>
                 </>

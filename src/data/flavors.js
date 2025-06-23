@@ -27,15 +27,15 @@ export const FLAVORS = [
     },
     adjustments: {
       bowl: {
-        position: [0, 5, 0], // [x, y, z] ออฟเซ็ตจากจุดยึด (คาง)
+        position: [0, 2.2, -3.5], // [x, y, z] ออฟเซ็ตจากจุดยึด (คาง)
         rotation: [Math.PI, 0, 0], // [x, y, z] การหมุน (เรเดียน)
-        scale: 2.5, // ขนาด (ตัวเลขเดียวสำหรับทุกแกน)
+        scale: 1.35, // ขนาด (ตัวเลขเดียวสำหรับทุกแกน)
         customTexture: "/assets/textures/cup_tex.png",
       },
       prop: {
-        position: [0, 5, 0], // ขยับ prop ขึ้นมานิดหน่อยและมาข้างหน้า
-        rotation: [Math.PI, 0, 0],
-        scale: 2.5,
+        position: [0, 2.2, -3.5], // ขยับ prop ขึ้นมานิดหน่อยและมาข้างหน้า
+        rotation: [Math.PI, 0, 0], // [x, y, z] การหมุน (เรเดียน)
+        scale: 1.35, // ขนาด (ตัวเลขเดียวสำหรับทุกแกน)
       },
       chopstick: {
         position: [0, -9, 0], // ตำแหน่งคงที่บนหน้าจอ
