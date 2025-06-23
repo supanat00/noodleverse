@@ -123,7 +123,8 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
             const stream = recordingCanvas.captureStream(30);
             const recorder = new MediaRecorder(stream, {
                 // mimeType: "video/webm;codecs=h264",
-                mimeType: "video/mp4; codecs=avc1.42E01E,mp4a.40.2"
+                // mimeType: "video/mp4; codecs=avc1.42E01E,mp4a.40.2"
+                mimeType: "video/mp4;"
             });
             mediaRecorderRef.current = recorder;
             recordedChunksRef.current = [];
