@@ -74,6 +74,31 @@ function HeadsUpDisplay({ selectedFlavor, isVisible }) {
     );
 }
 
+// [ใหม่] คอมโพเนนต์สำหรับจัดการการใส่ Texture โดยเฉพาะ
+function TextureInjector({ url, model, onTextureApplied }) {
+    // Hook นี้จะถูกเรียกอย่างปลอดภัย เพราะคอมโพเนนต์นี้จะถูก Render ต่อเมื่อ url มีค่าเท่านั้น
+    const texture = useTexture(url);
+
+    useEffect(() => {
+        if (model && texture) {
+            model.traverse((child) => {
+                if (child.isMesh && child.material instanceof THREE.MeshStandardMaterial) {
+                    child.material.map = texture;
+                    child.material.map.flipY = false;
+                    child.material.map.needsUpdate = true;
+                    child.material.metalness = 0;
+                    child.material.roughness = 1;
+                    child.material.needsUpdate = true;
+                }
+            });
+            // เรียก callback function เพื่อบอก Parent ว่าเสร็จแล้ว
+            onTextureApplied();
+        }
+    }, [model, texture, onTextureApplied]);
+
+    // คอมโพเนนต์นี้ไม่ต้อง render อะไรออกมา
+    return null;
+}
 
 // ====================================================================
 // FaceAnchor Component ที่มีการแก้ไขตามที่ต้องการ
@@ -92,35 +117,9 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
     const { scene: propModel, animations: propAnims } = useGLTF(flavor.models.prop);
     const { scene: chopstickModel, animations: chopstickAnims } = useGLTF(flavor.models.chopstick);
 
-    // [แก้ไข] สร้างตัวแปรสำหรับเก็บ URL ของ texture ก่อน
     const customTextureUrl = bowlAdjust.customTexture;
 
-    // [แก้ไข] เรียกใช้ useTexture แบบมีเงื่อนไขผ่าน hook แยก
-    // โดยถ้าไม่มี URL จะ return null
-    const customBowlTexture = useMemo(() => {
-        return customTextureUrl ? new THREE.TextureLoader().load(customTextureUrl) : null;
-    }, [customTextureUrl]);
-    // เราไม่ใช้ useTexture โดยตรงเพื่อหลีกเลี่ยงการเรียก hook แบบมีเงื่อนไข
-    // แต่การใช้ new TextureLoader() ภายใน useMemo ให้ผลลัพธ์เหมือนกันและปลอดภัยกว่าในกรณีนี้
-
-    useEffect(() => {
-        // [แก้ไข] เพิ่มการเช็คว่า customBowlTexture ไม่ใช่ null
-        if (customTextureUrl && bowlModel && customBowlTexture) {
-            bowlModel.traverse((child) => {
-                if (child.isMesh && child.material) {
-                    // ตรวจสอบว่า material เป็น standard material หรือไม่
-                    if (child.material instanceof THREE.MeshStandardMaterial) {
-                        const newMaterial = child.material.clone();
-                        newMaterial.map = customBowlTexture;
-                        // สำคัญ: ต้องตั้งค่า flipY เป็น false สำหรับ GLTF texture
-                        newMaterial.map.flipY = false;
-                        newMaterial.needsUpdate = true;
-                        child.material = newMaterial;
-                    }
-                }
-            });
-        }
-    }, [bowlModel, customBowlTexture, customTextureUrl]);
+    const [isBowlReady, setIsBowlReady] = useState(!customTextureUrl);
 
     const propMixer = useMemo(() => new THREE.AnimationMixer(propModel), [propModel]);
     const propActions = useMemo(() => {
@@ -150,7 +149,6 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
 
     // [ใหม่] สร้าง Ref สำหรับเก็บค่าการปรับขนาด
     const initialFaceWidth = useRef(null);
-    const currentScale = useRef(1);
 
     useEffect(() => { propModel.visible = false; }, [propModel]);
 
@@ -193,19 +191,7 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
 
         groupRef.current.quaternion.slerp(faceQuaternion, 0.5);
 
-        // --- [ใหม่] ส่วนที่ 2: จัดการการปรับขนาดตามระยะห่างของใบหน้า ---
-        const p1 = new THREE.Vector2(leftCheek.x, leftCheek.y);
-        const p2 = new THREE.Vector2(rightCheek.x, rightCheek.y);
-        const faceWidth = p1.distanceTo(p2);
 
-        if (initialFaceWidth.current === null) {
-            initialFaceWidth.current = faceWidth; // ตั้งค่าเริ่มต้นเมื่อเจอหน้าครั้งแรก
-        }
-        const targetScale = faceWidth / initialFaceWidth.current;
-        // ใช้ lerp เพื่อให้การปรับขนาดนุ่มนวล ไม่กระตุก
-        currentScale.current = THREE.MathUtils.lerp(currentScale.current, targetScale, 0.1);
-        // ปรับขนาด Group ที่ตามใบหน้า (bowl และ prop)
-        groupRef.current.scale.set(currentScale.current, currentScale.current, currentScale.current);
 
         const upperLip = landmarks[13];
         const lowerLip = landmarks[14];
@@ -230,16 +216,30 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
 
     return (
         <>
-            {/* Group นี้จะถูกควบคุม scale แบบ real-time */}
-            <group ref={groupRef} visible={false}>
-                <primitive object={bowlModel.clone()} position={bowlAdjust.position} rotation={bowlAdjust.rotation} scale={bowlAdjust.scale} />
-                <primitive object={propModel} position={propAdjust.position} rotation={propAdjust.rotation} scale={propAdjust.scale} />
-            </group>
+            {customTextureUrl && (
+                <TextureInjector
+                    url={customTextureUrl}
+                    model={bowlModel}
+                    onTextureApplied={() => setIsBowlReady(true)}
+                />
+            )}
 
-            {/* Group นี้มี scale คงที่จากไฟล์ data */}
-            <group ref={chopstickGroupRef} position={chopstickAdjust.position} rotation={chopstickAdjust.rotation} scale={chopstickAdjust.scale} visible={false}>
-                <primitive object={chopstickModel} />
-            </group>
+            {isBowlReady && (
+                <>
+                    <group ref={groupRef} visible={false}>
+                        {/* bowlModel ยังคงต้อง clone เพราะเรามีการแก้ไข material ของมัน */}
+                        <primitive object={bowlModel.clone()} position={bowlAdjust.position} rotation={bowlAdjust.rotation} scale={bowlAdjust.scale} />
+
+                        {/* [แก้ไข] ใช้ propModel ต้นฉบับโดยตรง ไม่ต้อง clone */}
+                        <primitive object={propModel} position={propAdjust.position} rotation={propAdjust.rotation} scale={propAdjust.scale} />
+                    </group>
+
+                    <group ref={chopstickGroupRef} position={chopstickAdjust.position} rotation={chopstickAdjust.rotation} scale={chopstickAdjust.scale} visible={false}>
+                        {/* [แก้ไข] ใช้ chopstickModel ต้นฉบับโดยตรง ไม่ต้อง clone */}
+                        <primitive object={chopstickModel} />
+                    </group>
+                </>
+            )}
         </>
     );
 }
