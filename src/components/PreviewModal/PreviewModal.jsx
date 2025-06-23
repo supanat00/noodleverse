@@ -35,8 +35,9 @@ const PreviewModal = ({ preview, onRetry, onSave, onShare }) => {
     // Effect จัดการการเล่นวิดีโอ (เหมือนเดิม)
     useEffect(() => {
         if (preview.type === 'video' && videoRef.current) {
+            // บังคับให้เล่นอีกครั้งเมื่อ component แสดงผล
             videoRef.current.play().catch(error => {
-                console.warn("Autoplay was prevented:", error);
+                console.warn("Video autoplay was prevented on preview:", error);
             });
         }
     }, [preview.type, preview.src]);
