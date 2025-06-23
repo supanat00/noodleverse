@@ -92,7 +92,7 @@ function TextureInjector({ url, model, onTextureApplied }) {
 
                     // ค่า metalness และ roughness ยังคงเดิม เพื่อให้พื้นผิวไม่สะท้อนแสง
                     child.material.metalness = 0;
-                    child.material.roughness = 1;
+                    child.material.roughness = 0;
 
                     child.material.needsUpdate = true;
                 }
@@ -248,7 +248,6 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
     );
 }
 
-
 // ====================================================================
 // Component หลักที่รวมทุกอย่างเข้าด้วยกัน (Cleaned Up)
 // ====================================================================
@@ -312,7 +311,7 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
                 <>
                     <canvas ref={canvas2DRef} className="output_canvas_debug" />
                     <Canvas className="ar-canvas-3d-debug" onCreated={(state) => { glRef.current = state.gl; }} gl={{ preserveDrawingBuffer: true }}>
-                        <ambientLight intensity={0.5} />
+                        <ambientLight intensity={1} />
                         <directionalLight position={[0, 5, 5]} intensity={1} />
                         <Suspense fallback={null}>
                             {allFlavors.map(flavor => {
