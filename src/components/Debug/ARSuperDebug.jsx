@@ -1,22 +1,157 @@
 import React, { useRef, useEffect, Suspense, useMemo, forwardRef, useImperativeHandle, useState, useCallback } from "react";
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { useGLTF, Preload, useVideoTexture, useTexture } from '@react-three/drei';
+import { Preload, useVideoTexture, useTexture } from '@react-three/drei';
 import mediaPipeService from "../../services/mediaPipeService";
 import { Camera } from "@mediapipe/camera_utils";
 
 import './ARSuperDebug.css';
 
-// HeadsUpDisplay component ไม่มีการเปลี่ยนแปลง
+// ✨ Error Boundary Component for 3D Scene ✨
+class ThreeJSErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        console.error('ThreeJS Error Boundary caught an error:', error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="threejs-error-fallback">
+                    <p>เกิดข้อผิดพลาดในการแสดงผล 3D กรุณาลองใหม่อีกครั้ง</p>
+                    <button onClick={() => this.setState({ hasError: false, error: null })}>
+                        ลองใหม่
+                    </button>
+                </div>
+            );
+        }
+
+        return this.props.children;
+    }
+}
+
+// ✨ Robust GLTF Loader with Error Handling ✨
+function useRobustGLTF(url) {
+    const [gltf, setGltf] = useState(null);
+    const [error, setError] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        let isMounted = true;
+        setIsLoading(true);
+        setError(null);
+
+        const loadModel = async () => {
+            try {
+                // Use the existing preloadGLTF function with timeout
+                const result = await Promise.race([
+                    import('../../utils/preloadGLTF').then(m => m.preloadGLTF(url)),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Model loading timeout')), 15000)
+                    )
+                ]);
+
+                if (isMounted) {
+                    setGltf(result);
+                    setIsLoading(false);
+                }
+            } catch (err) {
+                console.error(`Failed to load model: ${url}`, err);
+                if (isMounted) {
+                    setError(err);
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        loadModel();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [url]);
+
+    return { gltf, error, isLoading };
+}
+
+// ✨ Robust Texture Loader with Error Handling ✨
+function useRobustTexture(url) {
+    const [texture, setTexture] = useState(null);
+    const [error, setError] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        let isMounted = true;
+        setIsLoading(true);
+        setError(null);
+
+        const loadTexture = async () => {
+            try {
+                const loader = new THREE.TextureLoader();
+                const result = await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error('Texture loading timeout')), 10000);
+
+                    loader.load(
+                        url,
+                        (tex) => {
+                            clearTimeout(timeout);
+                            resolve(tex);
+                        },
+                        undefined,
+                        (err) => {
+                            clearTimeout(timeout);
+                            reject(err);
+                        }
+                    );
+                });
+
+                if (isMounted) {
+                    setTexture(result);
+                    setIsLoading(false);
+                }
+            } catch (err) {
+                console.error(`Failed to load texture: ${url}`, err);
+                if (isMounted) {
+                    setError(err);
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        loadTexture();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [url]);
+
+    return { texture, error, isLoading };
+}
+
+// HeadsUpDisplay component with improved error handling
 function HeadsUpDisplay({ selectedFlavor, isVisible }) {
     const { viewport, size } = useThree();
 
     const logoUrl = '/assets/images/mama-logo.webp';
     const videoUrl = selectedFlavor?.videoPublicId || '';
+
+    // ใช้ useTexture ปกติสำหรับ logo เพื่อให้แสดงผลได้
     const logoTexture = useTexture(logoUrl);
-    // [แก้ไขเล็กน้อย] แก้ไข useVideoTexture ให้ start: false เพื่อให้ useEffect ควบคุมได้ 100%
+
+    // Improved video texture handling
     const videoTexture = useVideoTexture(videoUrl, {
-        muted: true, loop: true, start: false, crossOrigin: "anonymous",
+        muted: true,
+        loop: true,
+        start: false,
+        crossOrigin: "anonymous",
     });
 
     useEffect(() => {
@@ -29,7 +164,7 @@ function HeadsUpDisplay({ selectedFlavor, isVisible }) {
         }
     }, [isVisible, videoTexture.image]);
 
-    // การคำนวณขนาดและตำแหน่งทั้งหมดเหมือนเดิม
+    // Move all calculations before the early return
     const remToPx = 16;
     const topMarginInRem = 2;
     const containerMaxWidthInPx = 375;
@@ -47,7 +182,7 @@ function HeadsUpDisplay({ selectedFlavor, isVisible }) {
     const containerY = (viewport.height / 2) - topMarginInWorld - (containerHeight / 2);
     const cornerRadius = 0.05;
     const logoWidth = logoWidthInPx * pxToWorldRatio;
-    const logoAspectRatio = (logoTexture.image?.naturalWidth / logoTexture.image?.naturalHeight) || 1;
+    const logoAspectRatio = (logoTexture?.image?.naturalWidth / logoTexture?.image?.naturalHeight) || 1;
     const logoHeight = logoWidth / logoAspectRatio;
     const logoMargin = logoMarginInPx * pxToWorldRatio;
     const logoX = -containerWidth / 2 + logoMargin + (logoWidth / 2);
@@ -76,17 +211,14 @@ function HeadsUpDisplay({ selectedFlavor, isVisible }) {
 
 // [ใหม่] คอมโพเนนต์สำหรับจัดการการใส่ Texture โดยเฉพาะ
 function TextureInjector({ url, model, onTextureApplied }) {
-    const texture = useTexture(url);
+    const { texture, error: textureError } = useRobustTexture(url);
 
     useEffect(() => {
-        if (model && texture) {
+        if (model && texture && !textureError) {
             texture.colorSpace = THREE.SRGBColorSpace;
-
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
-
             texture.repeat.set(1, 1);
-
             texture.flipY = false;
 
             // ✨ แก้ไข Logic การ Traverse ✨
@@ -94,12 +226,7 @@ function TextureInjector({ url, model, onTextureApplied }) {
                 if (child.isMesh && child.name.includes('mama_cup')) {
                     if (child.material instanceof THREE.MeshStandardMaterial) {
                         child.material.map = texture;
-                        // เราตั้งค่า flipY ที่ texture object โดยตรงแล้ว ไม่ต้องตั้งที่นี่ซ้ำ
-                        // child.material.map.flipY = false;
-
-                        // สำคัญ: ต้องสั่ง needsUpdate ที่ตัว texture ด้วย
                         child.material.map.needsUpdate = true;
-
                         child.material.metalness = 0;
                         child.material.roughness = 0.2;
                         child.material.needsUpdate = true;
@@ -109,13 +236,13 @@ function TextureInjector({ url, model, onTextureApplied }) {
 
             onTextureApplied();
         }
-    }, [model, texture, onTextureApplied]);
+    }, [model, texture, textureError, onTextureApplied]);
 
     return null;
 }
 
 // ====================================================================
-// FaceAnchor Component (The Final, Corrected Version)
+// FaceAnchor Component (Production-Ready with Error Handling)
 // ====================================================================
 function FaceAnchor({ landmarksRef, flavor, isVisible }) {
     const groupRef = useRef();
@@ -137,12 +264,16 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
     const bowlAdjust = flavor.adjustments?.bowl
     const propAdjust = flavor.adjustments?.prop
     const chopstickAdjust = flavor.adjustments?.chopstick
-    const { scene: originalBowl } = useGLTF(flavor.models.bowl);
-    const { scene: originalProp, animations: propAnims } = useGLTF(flavor.models.prop);
-    const { scene: originalChopstick, animations: chopstickAnims } = useGLTF(flavor.models.chopstick);
-    const bowlModel = useMemo(() => originalBowl.clone(), [originalBowl]);
-    const propModel = useMemo(() => originalProp.clone(), [originalProp]);
-    const chopstickModel = useMemo(() => originalChopstick.clone(), [originalChopstick]);
+
+    // Use robust GLTF loading for all models
+    const { gltf: bowlGltf, error: bowlError } = useRobustGLTF(flavor.models.bowl);
+    const { gltf: propGltf, error: propError } = useRobustGLTF(flavor.models.prop);
+    const { gltf: chopstickGltf, error: chopstickError } = useRobustGLTF(flavor.models.chopstick);
+
+    // Create model clones only when GLTF is loaded successfully
+    const bowlModel = useMemo(() => bowlGltf?.scene?.clone(), [bowlGltf]);
+    const propModel = useMemo(() => propGltf?.scene?.clone(), [propGltf]);
+    const chopstickModel = useMemo(() => chopstickGltf?.scene?.clone(), [chopstickGltf]);
 
     const customTextureUrl = bowlAdjust.customTexture;
     const [isReadyToRender, setIsReadyToRender] = useState(!customTextureUrl);
@@ -152,23 +283,57 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
         setIsReadyToRender(true);
     }, []);
 
-    const propMixer = useMemo(() => new THREE.AnimationMixer(propModel), [propModel]);
-    const propActions = useMemo(() => {
-        if (propAnims && propAnims.length > 0) { const action = propMixer.clipAction(propAnims[0]); action.play(); action.paused = true; return { main: action }; }
-        return { main: null };
-    }, [propAnims, propMixer]);
-    const chopstickMixer = useMemo(() => new THREE.AnimationMixer(chopstickModel), [chopstickModel]);
-    const chopstickActions = useMemo(() => {
-        if (chopstickAnims && chopstickAnims.length > 0) { const action = chopstickMixer.clipAction(chopstickAnims[0]); action.play(); action.paused = false; return { main: action }; }
-        return { main: null };
-    }, [chopstickAnims, chopstickMixer]);
-    const lastMouthState = useRef("Close");
-    useEffect(() => { propModel.visible = false; }, [propModel]);
+    // Only create mixers and actions if models are loaded
+    const propMixer = useMemo(() =>
+        propModel ? new THREE.AnimationMixer(propModel) : null,
+        [propModel]
+    );
 
+    const propActions = useMemo(() => {
+        if (propGltf?.animations?.length > 0 && propMixer) {
+            const action = propMixer.clipAction(propGltf.animations[0]);
+            action.play();
+            action.paused = true;
+            return { main: action };
+        }
+        return { main: null };
+    }, [propGltf?.animations, propMixer]);
+
+    const chopstickMixer = useMemo(() =>
+        chopstickModel ? new THREE.AnimationMixer(chopstickModel) : null,
+        [chopstickModel]
+    );
+
+    // เพิ่ม chopstick animation ที่เล่นตลอดเวลา
+    useEffect(() => {
+        if (chopstickGltf?.animations?.length > 0 && chopstickMixer) {
+            const action = chopstickMixer.clipAction(chopstickGltf.animations[0]);
+            action.play();
+            action.paused = false; // เล่นตลอดเวลา
+        }
+    }, [chopstickGltf?.animations, chopstickMixer]);
+
+    const lastMouthState = useRef("Close");
+
+    useEffect(() => {
+        if (propModel) propModel.visible = false;
+    }, [propModel]);
+
+    // All hooks must be called before any conditional returns
     useFrame((state, delta) => {
         const group = groupRef.current;
         const chopstickGroup = chopstickGroupRef.current;
         const landmarks = landmarksRef.current;
+
+        // Don't render if any critical model failed to load
+        if (bowlError || propError || chopstickError) {
+            return;
+        }
+
+        // Don't render if models aren't ready
+        if (!bowlModel || !propModel || !chopstickModel) {
+            return;
+        }
 
         // ถ้า group ยังไม่พร้อม หรือรสชาตินี้ไม่ถูกเลือกอยู่ ให้หยุดทำงาน
         if (!group || !chopstickGroup || !isVisible) {
@@ -221,7 +386,6 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
         }
 
         // --- Logic การอ้าปากและ Animation (เหมือนเดิม) ---
-        // ... (ส่วนนี้ไม่มีการเปลี่ยนแปลง) ...
         const upperLip = landmarks[13];
         const lowerLip = landmarks[14];
         if (upperLip && lowerLip) {
@@ -231,16 +395,28 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
             if (currentMouthState !== lastMouthState.current) {
                 lastMouthState.current = currentMouthState;
                 const isMouthOpen = currentMouthState === "Open";
-                if (propActions.main) { propModel.visible = isMouthOpen; propActions.main.paused = !isMouthOpen; }
+                if (propActions.main) {
+                    propModel.visible = isMouthOpen;
+                    propActions.main.paused = !isMouthOpen;
+                }
             }
         }
         if (propMixer) propMixer.update(delta);
         if (chopstickMixer) chopstickMixer.update(delta);
     });
 
+    // Don't render if any critical model failed to load
+    if (bowlError || propError || chopstickError) {
+        console.error("Model loading errors:", { bowlError, propError, chopstickError });
+        return null;
+    }
+
+    // Don't render if models aren't ready
+    if (!bowlModel || !propModel || !chopstickModel) {
+        return null;
+    }
+
     // --- ส่วน JSX ที่ return เหมือนเดิม ---
-    // สังเกตว่า group ยังคงเริ่มต้นด้วย visible={false} ซึ่งถูกต้องแล้ว!
-    // เพราะเราจะควบคุมการแสดงผลจากใน useFrame
     return (
         <>
             {/* ส่ง callback ที่ memoized เข้าไป */}
@@ -349,22 +525,24 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
             {isMediaPipeReady && (
                 <>
                     <canvas ref={canvas2DRef} className="output_canvas_debug" />
-                    <Canvas className="ar-canvas-3d-debug" onCreated={(state) => { glRef.current = state.gl; }} gl={{ preserveDrawingBuffer: true }}>
-                        <ambientLight intensity={0.8} />
-                        <directionalLight position={[0, 5, 5]} intensity={1} />
-                        <Suspense fallback={null}>
-                            {allFlavors.map(flavor => {
-                                const isVisible = selectedFlavor?.id === flavor.id;
-                                return (
-                                    <group key={flavor.id} visible={isVisible}>
-                                        <FaceAnchor landmarksRef={landmarksRef} flavor={flavor} isVisible={isVisible} />
-                                        <HeadsUpDisplay selectedFlavor={flavor} isVisible={isVisible} />
-                                    </group>
-                                );
-                            })}
-                            <Preload all />
-                        </Suspense>
-                    </Canvas>
+                    <ThreeJSErrorBoundary>
+                        <Canvas className="ar-canvas-3d-debug" onCreated={(state) => { glRef.current = state.gl; }} gl={{ preserveDrawingBuffer: true }}>
+                            <ambientLight intensity={0.8} />
+                            <directionalLight position={[0, 5, 5]} intensity={1} />
+                            <Suspense fallback={null}>
+                                {allFlavors.map(flavor => {
+                                    const isVisible = selectedFlavor?.id === flavor.id;
+                                    return (
+                                        <group key={flavor.id} visible={isVisible}>
+                                            <FaceAnchor landmarksRef={landmarksRef} flavor={flavor} isVisible={isVisible} />
+                                            <HeadsUpDisplay selectedFlavor={flavor} isVisible={isVisible} />
+                                        </group>
+                                    );
+                                })}
+                                <Preload all />
+                            </Suspense>
+                        </Canvas>
+                    </ThreeJSErrorBoundary>
                 </>
             )}
         </div>
