@@ -3,6 +3,7 @@ import './PreviewModal.css';
 import { AdvancedImage } from '@cloudinary/react';
 import { cld } from '../../utils/cloudinary';
 import { quality } from '@cloudinary/url-gen/actions/delivery';
+import { isIOS, isSafari } from '../../utils/deviceUtils';
 
 // --- Cloudinary Assets (Pre-defined) ---
 const backgroundCldImage = cld.image('TKO/MAMAOK/images/preview-bg.webp').delivery(quality('auto'));
@@ -31,6 +32,15 @@ const ImagePreloader = ({ imageUrl, onLoaded }) => {
 const PreviewModal = ({ preview, onRetry, onSave, onShare }) => {
     const videoRef = useRef(null);
     const [areAssetsReady, setAreAssetsReady] = useState(false);
+
+    // --- Platform detection ---
+    let isIOS_Safari = false;
+    try {
+        // เฉพาะ iOS (iPhone/iPad/iPod) หรือ Safari บน iOS เท่านั้น
+        isIOS_Safari = isIOS() || (isSafari() && /iP(hone|od|ad)/.test(navigator.userAgent));
+    } catch {
+        isIOS_Safari = false; // fallback: แสดงปุ่มบันทึกเสมอ
+    }
 
     // Effect จัดการการเล่นวิดีโอ (เหมือนเดิม)
     useEffect(() => {
@@ -102,14 +112,22 @@ const PreviewModal = ({ preview, onRetry, onSave, onShare }) => {
 
                 {/* --- Layout ปุ่มแบบใหม่ --- */}
                 <div className="preview-actions-container">
-                    <div className="preview-actions-top-row">
-                        <button className="preview-button secondary" onClick={onSave}>
-                            บันทึก
-                        </button>
-                        <button className="preview-button secondary" onClick={onShare}>
+                    {isIOS_Safari ? (
+                        // iOS/Safari: ปุ่มเดียว (แชร์)
+                        <button className="preview-button secondary full-width" onClick={onShare}>
                             แชร์
                         </button>
-                    </div>
+                    ) : (
+                        // ทุก platform อื่น: แยกปุ่มบันทึก/แชร์
+                        <div className="preview-actions-top-row">
+                            <button className="preview-button secondary" onClick={onSave}>
+                                บันทึก
+                            </button>
+                            <button className="preview-button secondary" onClick={onShare}>
+                                แชร์
+                            </button>
+                        </div>
+                    )}
                     <button className="preview-button primary full-width" onClick={onRetry}>
                         เล่นอีกครั้ง
                     </button>

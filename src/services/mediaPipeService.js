@@ -15,55 +15,49 @@ const mediaPipeService = {
    * @returns {Promise<FaceMesh>} A promise that resolves with the initialized FaceMesh instance.
    */
   async initialize() {
-    // ถ้าเคย initialize สำเร็จแล้ว ให้ return instance เดิมทันที
     if (isInitialized && faceMeshInstance) {
       return Promise.resolve(faceMeshInstance);
     }
-
-    // ถ้ากำลัง initialize อยู่ ให้รอ promise เดิมจนเสร็จ
     if (isInitializing) {
       return initializationPromise;
     }
-
-    // เริ่มกระบวนการ initialize
     isInitializing = true;
-
-    // สร้าง Promise ใหม่สำหรับให้คนอื่นรอ
-    initializationPromise = new Promise(async (resolve, reject) => {
+    let retries = 0;
+    const MAX_RETRIES = 2;
+    const RETRY_DELAY = 1200;
+    const doInitialize = async () => {
       try {
         console.log("MediaPipe Service: Initializing...");
         const faceMesh = new FaceMesh({
           locateFile: (file) =>
             `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
         });
-
         faceMesh.setOptions({
           maxNumFaces: 1,
           refineLandmarks: true,
           minDetectionConfidence: 0.5,
           minTrackingConfidence: 0.5,
         });
-
-        // "Warm-up" call: การเรียก onResults ครั้งแรกเป็นส่วนสำคัญของการ initialize
-        // เราจะส่ง resolve function เข้าไปเพื่อให้รู้ว่ามันพร้อมแล้ว
         faceMesh.onResults(() => {});
-
-        // นี่คือ trick: เราต้องรอให้ WASM module โหลดเสร็จจริงๆ
-        // การเรียก send() ด้วย input เปล่าๆ จะเป็นการบังคับให้โหลด
         await faceMesh.send({ image: document.createElement("canvas") });
-
         console.log("MediaPipe Service: Initialization Complete!");
         faceMeshInstance = faceMesh;
         isInitialized = true;
         isInitializing = false;
-        resolve(faceMeshInstance);
+        return faceMeshInstance;
       } catch (error) {
         console.error("MediaPipe Service: Initialization Failed!", error);
-        isInitializing = false;
-        reject(error);
+        if (retries < MAX_RETRIES) {
+          retries++;
+          await new Promise((res) => setTimeout(res, RETRY_DELAY));
+          return doInitialize();
+        } else {
+          isInitializing = false;
+          throw error;
+        }
       }
-    });
-
+    };
+    initializationPromise = doInitialize();
     return initializationPromise;
   },
 

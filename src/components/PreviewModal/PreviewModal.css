@@ -58,15 +58,15 @@
 .preview-content-frame {
   position: absolute;
   /* ปรับตำแหน่ง Y ขึ้นไปเล็กน้อย เพื่อให้มีที่สำหรับปุ่ม */
-  top: 48%;
+  top: 44%;
   left: 50%;
   transform: translate(-50%, -50%);
   /* ลดขนาดลงเล็กน้อยเพื่อให้มีพื้นที่รอบๆ */
-  width: 65%;
-  max-width: 340px;
+  width: 75%;
+  max-width: 400px;
   z-index: 2;
   aspect-ratio: 9 / 16;
-  display: flex; /* ไม่ต้องมี background, border หรือ shadow แล้ว */
+  display: flex;
 }
 
 .preview-content {
@@ -87,7 +87,7 @@
 /* --- ✨ Layout ปุ่มแบบใหม่ ✨ --- */
 .preview-actions-container {
   position: absolute;
-  bottom: calc(6vh + env(safe-area-inset-bottom, 0px));
+  bottom: calc(12vh + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   display: flex;

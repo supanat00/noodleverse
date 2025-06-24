@@ -347,6 +347,9 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
             chopstickGroup.visible = false;
             // รีเซ็ตสถานะ "เคยวางแล้ว" เพื่อให้ครั้งหน้าที่เจอหน้า จะได้วาร์ปไปใหม่
             hasBeenPlaced.current = false;
+            // เพิ่ม debug log
+            // TODO: Debug log (No face landmarks detected, hiding models.)
+            // (ใช้ window.__DEV__ หรือเปิด log เฉพาะ dev build)
             return;
         }
 
@@ -388,17 +391,28 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
         // --- Logic การอ้าปากและ Animation (เหมือนเดิม) ---
         const upperLip = landmarks[13];
         const lowerLip = landmarks[14];
+        let mouthOpening = null;
         if (upperLip && lowerLip) {
-            const mouthOpening = Math.abs(lowerLip.y - upperLip.y) * 1000;
-            const MOUTH_OPEN_THRESHOLD = 15;
-            const currentMouthState = mouthOpening > MOUTH_OPEN_THRESHOLD ? "Open" : "Close";
-            if (currentMouthState !== lastMouthState.current) {
-                lastMouthState.current = currentMouthState;
-                const isMouthOpen = currentMouthState === "Open";
-                if (propActions.main) {
-                    propModel.visible = isMouthOpen;
-                    propActions.main.paused = !isMouthOpen;
-                }
+            mouthOpening = Math.abs(lowerLip.y - upperLip.y) * 1000;
+        }
+        const MOUTH_OPEN_THRESHOLD = 15;
+        let currentMouthState = 'Close';
+        if (mouthOpening !== null) {
+            currentMouthState = mouthOpening > MOUTH_OPEN_THRESHOLD ? 'Open' : 'Close';
+        } else {
+            // fallback: ถ้า detect ไม่ได้ ให้ถือว่าปิดปาก
+            currentMouthState = 'Close';
+            // TODO: Debug log (Cannot detect mouth opening, fallback to Close.)
+            // (ใช้ window.__DEV__ หรือเปิด log เฉพาะ dev build)
+        }
+        if (currentMouthState !== lastMouthState.current) {
+            lastMouthState.current = currentMouthState;
+            const isMouthOpen = currentMouthState === 'Open';
+            if (propActions.main) {
+                propModel.visible = isMouthOpen;
+                propActions.main.paused = !isMouthOpen;
+            } else {
+                // TODO: Debug log (propActions.main is null, cannot animate propModel.)
             }
         }
         if (propMixer) propMixer.update(delta);

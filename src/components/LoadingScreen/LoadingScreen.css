@@ -30,8 +30,8 @@
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
-  padding: calc(8vh + env(safe-area-inset-top, 0px)) 2rem
-    calc(8vh + env(safe-area-inset-bottom, 0px)) 2rem;
+  padding: calc(12vh + env(safe-area-inset-top, 0px)) 2rem
+    calc(12vh + env(safe-area-inset-bottom, 0px)) 2rem;
 
   opacity: 0; /* เริ่มต้นซ่อน */
   transition: opacity 0.5s ease-in-out; /* ทำให้ค่อยๆ ปรากฏ */

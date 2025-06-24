@@ -1,5 +1,5 @@
 // App.jsx (Production-Ready: Parallel Loading with Timeouts & Fallbacks)
-import React, { useState, Suspense, useCallback } from 'react';
+import React, { useState, Suspense, useCallback, useEffect } from 'react';
 import './App.css';
 import LoadingScreen from './components/LoadingScreen/LoadingScreen';
 import PermissionPrompt from './components/PermissionPrompt/PermissionPrompt';
@@ -38,7 +38,7 @@ const retryWithBackoff = async (fn, maxRetries = 3, baseDelay = 1000) => {
 };
 
 function App() {
-  const [appState, setAppState] = useState('requesting_permission');
+  const [appState, setAppState] = useState('loading');
   const [error, setError] = useState(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
 
@@ -131,38 +131,35 @@ function App() {
     }
   }, []);
 
-  // 4. Improved permission handling
-  const handleGrantPermission = useCallback(async () => {
-    try {
-      console.log("📷 Requesting camera permission...");
-
-      // Request video first, audio only when needed for recording
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false // Don't request audio upfront
-      });
-
-      // Stop the test stream immediately
-      stream.getTracks().forEach(track => track.stop());
-
-      console.log("✅ Permission granted. Starting preload...");
-      startPreloading();
-
-    } catch (err) {
-      console.error("❌ Permission denied:", err);
-      if (err.name === 'NotAllowedError') {
-        setError("จำเป็นต้องอนุญาตให้เข้าถึงกล้องเพื่อใช้งาน กรุณาอนุญาตและรีเฟรชหน้าเว็บ");
-      } else if (err.name === 'NotFoundError') {
-        setError("ไม่พบกล้องในอุปกรณ์ กรุณาตรวจสอบการเชื่อมต่อกล้อง");
-      } else {
-        setError("เกิดข้อผิดพลาดในการเข้าถึงกล้อง กรุณาลองใหม่อีกครั้ง");
+  // ขอ permission ทันทีเมื่อเข้าแอป (ไม่ต้องมีปุ่มแยก)
+  useEffect(() => {
+    async function requestPermissionAndPreload() {
+      try {
+        console.log("📷 Requesting camera permission...");
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+        stream.getTracks().forEach(track => track.stop());
+        setAppState('loading');
+        startPreloading();
+      } catch (err) {
+        console.error("❌ Permission denied:", err);
+        if (err.name === 'NotAllowedError') {
+          setError("จำเป็นต้องอนุญาตให้เข้าถึงกล้องเพื่อใช้งาน กรุณาอนุญาตและรีเฟรชหน้าเว็บ");
+        } else if (err.name === 'NotFoundError') {
+          setError("ไม่พบกล้องในอุปกรณ์ กรุณาตรวจสอบการเชื่อมต่อกล้อง");
+        } else {
+          setError("เกิดข้อผิดพลาดในการเข้าถึงกล้อง กรุณาลองใหม่อีกครั้ง");
+        }
       }
     }
-  }, [startPreloading]);
+    requestPermissionAndPreload();
+  }, []);
 
   // 5. Enhanced content rendering with error boundaries
   const renderContent = () => {
@@ -175,7 +172,8 @@ function App() {
             <button
               onClick={() => {
                 setError(null);
-                setAppState('requesting_permission');
+                setAppState('loading');
+                startPreloading();
               }}
               className="retry-button"
             >
@@ -185,23 +183,17 @@ function App() {
         </div>
       );
     }
-
     switch (appState) {
-      case 'requesting_permission':
-        return <PermissionPrompt onGrant={handleGrantPermission} />;
-
       case 'loading':
         return <LoadingScreen progress={loadingProgress} />;
-
       case 'ready':
         return (
           <Suspense fallback={<LoadingScreen progress={50} />}>
             <AROverlay />
           </Suspense>
         );
-
       default:
-        return <PermissionPrompt onGrant={handleGrantPermission} />;
+        return <LoadingScreen progress={loadingProgress} />;
     }
   };
 
