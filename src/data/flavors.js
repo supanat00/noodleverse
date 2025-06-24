@@ -20,10 +20,10 @@ export const FLAVORS = [
     iconSrc: iconGochucheese,
     videoPublicId: presenter03,
     models: {
-      bowl: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138306/TKO/MAMAOK/models/gochucheese/gochucheese_bowl.glb",
+      bowl: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750756208/TKO/MAMAOK/models/gochucheese/gochucheese_bowl.glb",
       chopstick:
         "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138306/TKO/MAMAOK/models/gochucheese/gochucheese_fork.glb",
-      prop: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138307/TKO/MAMAOK/models/gochucheese/gochucheese_prop.glb",
+      prop: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750756209/TKO/MAMAOK/models/gochucheese/gochucheese_prop.glb",
     },
     adjustments: {
       bowl: {
@@ -38,9 +38,9 @@ export const FLAVORS = [
         scale: 1.35, // ขนาด (ตัวเลขเดียวสำหรับทุกแกน)
       },
       chopstick: {
-        position: [-0.35, -4.25, 3.5], // ตำแหน่งคงที่บนหน้าจอ
+        position: [0, -3.75, 3.5], // ตำแหน่งคงที่บนหน้าจอ
         rotation: [0, 0, 0],
-        scale: 1.35,
+        scale: 1.2,
       },
     },
   },
@@ -50,10 +50,10 @@ export const FLAVORS = [
     iconSrc: iconKimchi,
     videoPublicId: presenter02,
     models: {
-      bowl: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138412/TKO/MAMAOK/models/kimchi/kimchi_bowl.glb",
+      bowl: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750755951/TKO/MAMAOK/models/kimchi/kimchi_bowl.glb",
       chopstick:
         "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138413/TKO/MAMAOK/models/kimchi/kimchi_chopstick.glb",
-      prop: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138414/TKO/MAMAOK/models/kimchi/kimchi_prop.glb",
+      prop: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750755952/TKO/MAMAOK/models/kimchi/kimchi_prop.glb",
     },
     adjustments: {
       bowl: {
@@ -79,10 +79,10 @@ export const FLAVORS = [
     iconSrc: iconTonkotsu,
     videoPublicId: presenter01,
     models: {
-      bowl: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750137829/TKO/MAMAOK/models/tonkotsu/tonkotsu_bowl.glb",
+      bowl: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750756065/TKO/MAMAOK/models/tonkotsu/tonkotsu_bowl.glb",
       chopstick:
         "https://res.cloudinary.com/da8eemrq8/image/upload/v1750137830/TKO/MAMAOK/models/tonkotsu/tonkotsu_chopstick.glb",
-      prop: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750137830/TKO/MAMAOK/models/tonkotsu/tonkotsu_prop.glb",
+      prop: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750756066/TKO/MAMAOK/models/tonkotsu/tonkotsu_prop.glb",
     },
     adjustments: {
       bowl: {
