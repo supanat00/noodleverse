@@ -30,7 +30,8 @@
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
-  padding: 8vh 2rem;
+  padding: calc(8vh + env(safe-area-inset-top, 0px)) 2rem
+    calc(8vh + env(safe-area-inset-bottom, 0px)) 2rem;
 
   opacity: 0; /* เริ่มต้นซ่อน */
   transition: opacity 0.5s ease-in-out; /* ทำให้ค่อยๆ ปรากฏ */
@@ -62,6 +63,7 @@
   font-weight: normal;
   margin: 0;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  margin-bottom: 1.2rem;
 }
 
 /* ข้อความรอง เน้นตัวหนา */
@@ -115,7 +117,7 @@
 
 /* ✨ Progress indicator styles ✨ */
 .loading-progress-container {
-  margin-top: 2rem;
+  margin-bottom: 0.5rem;
   width: 100%;
   max-width: 300px;
 }

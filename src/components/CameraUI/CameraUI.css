@@ -15,19 +15,11 @@
   position: absolute;
   width: 100%;
   bottom: 0;
-
-  /* 
-   * 2. ใช้ padding ในการเว้นระยะขอบจอ แทน max-width
-   *    - padding: 0 calc(50% - 150px); 
-   *      เป็นเทคนิคที่จะเว้นระยะให้ปุ่มซ้ายสุดและขวาสุดอยู่ห่างกันไม่เกิน 300px
-   *      แต่จะยืดหยุ่นบนจอที่แคบกว่า
-   *    - หรือใช้วิธีที่ง่ายกว่าคือ padding: 0 5%;
-   */
-  padding: 0% 8% 16% 8%; /* เว้นระยะขอบซ้าย-ขวา 5% ของความกว้างจอ */
-  box-sizing: border-box; /* สำคัญมาก! */
+  padding: 0% 8% calc(16% + env(safe-area-inset-bottom, 0px)) 8%;
+  box-sizing: border-box;
   z-index: 99;
   display: flex;
-  justify-content: space-between; /* ผลักปุ่มซ้าย-ขวาไปสุดขอบ และปุ่มกลางอยู่ตรงกลาง */
+  justify-content: space-between;
   align-items: center;
 }
 

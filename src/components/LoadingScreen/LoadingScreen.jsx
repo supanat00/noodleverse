@@ -66,9 +66,6 @@ const LoadingScreen = ({ isFadingOut, progress = 0 }) => {
 
                 <div className="loading-text-container">
                     <p className="loading-text-main">กำลังเชื่อมต่อกับ</p>
-                    <p className="loading-text-sub">Ink Waruntorn</p>
-
-                    {/* ✨ Progress indicator แทนที่ dots ✨ */}
                     <div className="loading-progress-container">
                         <div className="loading-progress-bar">
                             <div
@@ -78,6 +75,7 @@ const LoadingScreen = ({ isFadingOut, progress = 0 }) => {
                         </div>
                         <p className="loading-progress-text">{getProgressText()}</p>
                     </div>
+                    <p className="loading-text-sub">Ink Waruntorn</p>
                 </div>
             </div>
         </div>

@@ -330,16 +330,18 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        // ปิด modal ทันทีหลังดาวน์โหลดทั้งภาพและวิดีโอ
+        setPreview(null);
     }, [preview]);
 
+    // --- แชร์: fallback กลับไปใช้วิธีเดิม ---
     const handleShare = useCallback(async () => {
         if (!preview?.src) return;
         try {
             const response = await fetch(preview.src);
             const blob = await response.blob();
-            const fileType = preview.type === 'video' ? (preview.mimeType || 'video/mp4') : 'image/png';
-            const extension = fileType.split('/')[1];
-            const file = new File([blob], `mama-noodleverse.${extension}`, { type: fileType });
+            const fileType = preview.type === 'video' ? 'video/mp4' : 'image/png';
+            const file = new File([blob], `mama-noodleverse.${fileType.split('/')[1]}`, { type: fileType });
 
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                 await navigator.share({
