@@ -4,6 +4,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Preload, useVideoTexture, useTexture } from '@react-three/drei';
 import mediaPipeService from "../../services/mediaPipeService";
 import { Camera } from "@mediapipe/camera_utils";
+import adaptiveFaceService from "../../services/adaptiveFaceService";
+import tensorflowService from "../../services/tensorflowService";
 
 import './ARSuperDebug.css';
 
@@ -136,17 +138,39 @@ function useRobustTexture(url) {
     return { texture, error, isLoading };
 }
 
-// HeadsUpDisplay component with improved error handling
+// HeadsUpDisplay component with large presenter video and consistent margin/size
 function HeadsUpDisplay({ selectedFlavor, isVisible }) {
-    const { viewport, size } = useThree();
+    const { viewport } = useThree();
 
+    // presenter video ขยายขึ้นอีกนิด (75% ของจอ)
+    const maxWidth = viewport.width * 0.75;   // 75% ของจอ
+    const maxHeight = viewport.height * 0.28; // 28% ของจอ (margin บน)
+
+    let containerWidth = maxWidth;
+    let containerHeight = containerWidth * 9 / 16;
+    if (containerHeight > maxHeight) {
+        containerHeight = maxHeight;
+        containerWidth = containerHeight * 16 / 9;
+    }
+
+    const topMargin = 0.08;
+    const containerX = 0;
+    const containerY = (viewport.height / 2) - (containerHeight / 2) - topMargin;
+
+    // Logo
     const logoUrl = '/assets/images/mama-logo.webp';
-    const videoUrl = selectedFlavor?.videoPublicId || '';
-
-    // ใช้ useTexture ปกติสำหรับ logo เพื่อให้แสดงผลได้
     const logoTexture = useTexture(logoUrl);
+    // คำนวณอัตราส่วนโลโก้จริง
+    const logoAspectRatio = (logoTexture?.image?.naturalWidth && logoTexture?.image?.naturalHeight)
+        ? logoTexture.image.naturalWidth / logoTexture.image.naturalHeight
+        : 1.8; // fallback เผื่อโหลดไม่ทัน
+    const logoWidth = containerWidth * 0.13;
+    const logoHeight = logoWidth / logoAspectRatio;
+    const logoMargin = containerWidth * 0.04;
+    const logoX = -containerWidth / 2 + logoMargin + (logoWidth / 2);
+    const logoY = containerHeight / 2 - logoMargin - (logoHeight / 2);
 
-    // Improved video texture handling
+    const videoUrl = selectedFlavor?.videoPublicId || '';
     const videoTexture = useVideoTexture(videoUrl, {
         muted: true,
         loop: true,
@@ -164,30 +188,7 @@ function HeadsUpDisplay({ selectedFlavor, isVisible }) {
         }
     }, [isVisible, videoTexture.image]);
 
-    // Move all calculations before the early return
-    const remToPx = 16;
-    const topMarginInRem = 2;
-    const containerMaxWidthInPx = 375;
-    const containerWidthPercent = 1;
-    const logoWidthInPx = 60;
-    const logoMarginInPx = 15;
-    const pxToWorldRatio = viewport.width / size.width;
-    const responsiveWidth = viewport.width * containerWidthPercent;
-    const maxWidthInWorld = containerMaxWidthInPx * pxToWorldRatio;
-    const containerWidth = Math.min(responsiveWidth, maxWidthInWorld);
-    const videoAspectRatio = (videoTexture.image?.videoWidth / videoTexture.image?.videoHeight) || (16 / 9);
-    const containerHeight = containerWidth / videoAspectRatio;
-    const containerX = 0;
-    const topMarginInWorld = (topMarginInRem * remToPx) * pxToWorldRatio;
-    const containerY = (viewport.height / 2) - topMarginInWorld - (containerHeight / 2);
     const cornerRadius = 0.05;
-    const logoWidth = logoWidthInPx * pxToWorldRatio;
-    const logoAspectRatio = (logoTexture?.image?.naturalWidth / logoTexture?.image?.naturalHeight) || 1;
-    const logoHeight = logoWidth / logoAspectRatio;
-    const logoMargin = logoMarginInPx * pxToWorldRatio;
-    const logoX = -containerWidth / 2 + logoMargin + (logoWidth / 2);
-    const logoY = containerHeight / 2 - logoMargin - (logoHeight / 2);
-
     const roundedVideoMaterial = useMemo(() => new THREE.ShaderMaterial({
         uniforms: { uMap: { value: videoTexture }, uRadius: { value: cornerRadius }, uAspect: { value: containerWidth / containerHeight } },
         vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
@@ -248,47 +249,36 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
     const groupRef = useRef();
     const chopstickGroupRef = useRef();
     const { camera } = useThree();
-
-    // [ใหม่] Ref สำหรับจำว่าโมเดลเคยถูกวางบนใบหน้าแล้วหรือยัง
     const hasBeenPlaced = useRef(false);
 
-    // [ใหม่] เมื่อ isVisible เปลี่ยนเป็น false (ผู้ใช้เลือกรสอื่น)
-    // เราต้องรีเซ็ตสถานะ `hasBeenPlaced` ด้วย
     useEffect(() => {
         if (!isVisible) {
             hasBeenPlaced.current = false;
         }
     }, [isVisible]);
 
-    // --- ส่วนของการโหลดโมเดลและ setup อื่นๆ เหมือนเดิมทั้งหมด ---
     const bowlAdjust = flavor.adjustments?.bowl
     const propAdjust = flavor.adjustments?.prop
     const chopstickAdjust = flavor.adjustments?.chopstick
 
-    // Use robust GLTF loading for all models
     const { gltf: bowlGltf, error: bowlError } = useRobustGLTF(flavor.models.bowl);
     const { gltf: propGltf, error: propError } = useRobustGLTF(flavor.models.prop);
     const { gltf: chopstickGltf, error: chopstickError } = useRobustGLTF(flavor.models.chopstick);
 
-    // Create model clones only when GLTF is loaded successfully
     const bowlModel = useMemo(() => bowlGltf?.scene?.clone(), [bowlGltf]);
     const propModel = useMemo(() => propGltf?.scene?.clone(), [propGltf]);
     const chopstickModel = useMemo(() => chopstickGltf?.scene?.clone(), [chopstickGltf]);
 
     const customTextureUrl = bowlAdjust.customTexture;
     const [isReadyToRender, setIsReadyToRender] = useState(!customTextureUrl);
-
-    // ใช้ callback ที่ memoized เพื่อป้องกันการ re-render ของ TextureInjector
     const handleTextureApplied = useCallback(() => {
         setIsReadyToRender(true);
     }, []);
 
-    // Only create mixers and actions if models are loaded
     const propMixer = useMemo(() =>
         propModel ? new THREE.AnimationMixer(propModel) : null,
         [propModel]
     );
-
     const propActions = useMemo(() => {
         if (propGltf?.animations?.length > 0 && propMixer) {
             const action = propMixer.clipAction(propGltf.animations[0]);
@@ -298,13 +288,10 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
         }
         return { main: null };
     }, [propGltf?.animations, propMixer]);
-
     const chopstickMixer = useMemo(() =>
         chopstickModel ? new THREE.AnimationMixer(chopstickModel) : null,
         [chopstickModel]
     );
-
-    // เพิ่ม chopstick animation ที่เล่นตลอดเวลา
     useEffect(() => {
         if (chopstickGltf?.animations?.length > 0 && chopstickMixer) {
             const action = chopstickMixer.clipAction(chopstickGltf.animations[0]);
@@ -312,44 +299,27 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
             action.paused = false; // เล่นตลอดเวลา
         }
     }, [chopstickGltf?.animations, chopstickMixer]);
-
     const lastMouthState = useRef("Close");
-
     useEffect(() => {
         if (propModel) propModel.visible = false;
     }, [propModel]);
 
-    // All hooks must be called before any conditional returns
     useFrame((state, delta) => {
         const group = groupRef.current;
         const chopstickGroup = chopstickGroupRef.current;
         const landmarks = landmarksRef.current;
+        if (bowlError || propError || chopstickError) return;
+        if (!bowlModel || !propModel || !chopstickModel) return;
+        if (!group || !chopstickGroup || !isVisible) return;
 
-        // Don't render if any critical model failed to load
-        if (bowlError || propError || chopstickError) {
-            return;
-        }
-
-        // Don't render if models aren't ready
-        if (!bowlModel || !propModel || !chopstickModel) {
-            return;
-        }
-
-        // ถ้า group ยังไม่พร้อม หรือรสชาตินี้ไม่ถูกเลือกอยู่ ให้หยุดทำงาน
-        if (!group || !chopstickGroup || !isVisible) {
-            return;
-        }
+        // --- ตะเกียบแสดงผลตลอดเวลา ---
+        chopstickGroup.visible = true;
 
         // ถ้าหาใบหน้าไม่เจอ
         if (!landmarks) {
-            // ซ่อนโมเดลไว้
             group.visible = false;
-            chopstickGroup.visible = false;
-            // รีเซ็ตสถานะ "เคยวางแล้ว" เพื่อให้ครั้งหน้าที่เจอหน้า จะได้วาร์ปไปใหม่
+            // chopstickGroup.visible = true; // ตะเกียบแสดงผลตลอด
             hasBeenPlaced.current = false;
-            // เพิ่ม debug log
-            // TODO: Debug log (No face landmarks detected, hiding models.)
-            // (ใช้ window.__DEV__ หรือเปิด log เฉพาะ dev build)
             return;
         }
 
@@ -372,79 +342,62 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
         const rotationMatrix = new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis);
         const faceQuaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
 
-        // --- ✨ Logic การวางและแสดงผลที่สมบูรณ์แบบ ✨ ---
         if (!hasBeenPlaced.current) {
-            // ครั้งแรกที่เจอหน้า: วาร์ปไปที่ตำแหน่งและทิศทางนั้นทันที
             group.position.copy(target);
             group.quaternion.copy(faceQuaternion);
-            hasBeenPlaced.current = true; // ตั้งธงว่าวางแล้ว
-
-            // จากนั้นค่อยสั่งให้ "แสดงผล"
+            hasBeenPlaced.current = true;
             group.visible = true;
-            chopstickGroup.visible = true;
         } else {
-            // ตั้งแต่ครั้งที่สองเป็นต้นไป: ใช้ lerp เพื่อความนุ่มนวล
             group.position.lerp(target, 0.5);
             group.quaternion.slerp(faceQuaternion, 0.5);
         }
 
-        // --- Logic การอ้าปากและ Animation (เหมือนเดิม) ---
+        // --- Logic การอ้าปาก/ปิดปาก: เล่น/หยุด/รีเซ็ตอนิเมชัน prop ---
         const upperLip = landmarks[13];
         const lowerLip = landmarks[14];
-        let mouthOpening = null;
         if (upperLip && lowerLip) {
-            mouthOpening = Math.abs(lowerLip.y - upperLip.y) * 1000;
-        }
-        const MOUTH_OPEN_THRESHOLD = 15;
-        let currentMouthState = 'Close';
-        if (mouthOpening !== null) {
-            currentMouthState = mouthOpening > MOUTH_OPEN_THRESHOLD ? 'Open' : 'Close';
-        } else {
-            // fallback: ถ้า detect ไม่ได้ ให้ถือว่าปิดปาก
-            currentMouthState = 'Close';
-            // TODO: Debug log (Cannot detect mouth opening, fallback to Close.)
-            // (ใช้ window.__DEV__ หรือเปิด log เฉพาะ dev build)
-        }
-        if (currentMouthState !== lastMouthState.current) {
-            lastMouthState.current = currentMouthState;
-            const isMouthOpen = currentMouthState === 'Open';
-            if (propActions.main) {
-                propModel.visible = isMouthOpen;
-                propActions.main.paused = !isMouthOpen;
-            } else {
-                // TODO: Debug log (propActions.main is null, cannot animate propModel.)
+            const mouthOpening = Math.abs(lowerLip.y - upperLip.y) * 1000;
+            const MOUTH_OPEN_THRESHOLD = 15;
+            const currentMouthState = mouthOpening > MOUTH_OPEN_THRESHOLD ? "Open" : "Close";
+            if (currentMouthState !== lastMouthState.current) {
+                lastMouthState.current = currentMouthState;
+                const isMouthOpen = currentMouthState === "Open";
+                if (propActions.main) {
+                    if (isMouthOpen) {
+                        propActions.main.reset();
+                        propActions.main.paused = false;
+                        propModel.visible = true;
+                    } else {
+                        propActions.main.reset();
+                        propActions.main.paused = true;
+                        propModel.visible = false;
+                    }
+                }
             }
         }
         if (propMixer) propMixer.update(delta);
         if (chopstickMixer) chopstickMixer.update(delta);
     });
 
-    // Don't render if any critical model failed to load
     if (bowlError || propError || chopstickError) {
         console.error("Model loading errors:", { bowlError, propError, chopstickError });
         return null;
     }
-
-    // Don't render if models aren't ready
     if (!bowlModel || !propModel || !chopstickModel) {
         return null;
     }
-
-    // --- ส่วน JSX ที่ return เหมือนเดิม ---
     return (
         <>
-            {/* ส่ง callback ที่ memoized เข้าไป */}
             {customTextureUrl && (
                 <TextureInjector url={customTextureUrl} model={bowlModel} onTextureApplied={handleTextureApplied} />
             )}
-            {/* เปลี่ยนเงื่อนไขมาใช้ state เดียว */}
             {isReadyToRender && (
                 <>
                     <group ref={groupRef} visible={false}>
                         <primitive object={bowlModel} position={bowlAdjust.position} rotation={bowlAdjust.rotation} scale={bowlAdjust.scale} />
                         <primitive object={propModel} position={propAdjust.position} rotation={propAdjust.rotation} scale={propAdjust.scale} />
                     </group>
-                    <group ref={chopstickGroupRef} position={chopstickAdjust.position} rotation={chopstickAdjust.rotation} scale={chopstickAdjust.scale} visible={false}>
+                    <group ref={chopstickGroupRef} position={chopstickAdjust.position} rotation={chopstickAdjust.rotation} scale={chopstickAdjust.scale} visible={true}>
                         <primitive object={chopstickModel} />
                     </group>
                 </>
@@ -461,8 +414,10 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
     const canvas2DRef = useRef(null);
     const landmarksRef = useRef(null);
     const glRef = useRef(null);
-    const [isMediaPipeReady, setIsMediaPipeReady] = useState(false);
+    const [isReady, setIsReady] = useState(false);
     const cameraInstanceRef = useRef(null);
+    const [serviceType, setServiceType] = useState(() => adaptiveFaceService.getServiceInfo().service);
+    const tfLoopRef = useRef(null);
 
     useImperativeHandle(ref, () => ({
         get arCanvas() { return glRef.current?.domElement; },
@@ -470,24 +425,68 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
     }), []);
 
     useEffect(() => {
-        mediaPipeService.initialize().then(() => {
-            setIsMediaPipeReady(true);
-        });
-    }, []);
+        const interval = setInterval(() => {
+            const info = adaptiveFaceService.getServiceInfo();
+            if (info.service !== serviceType) setServiceType(info.service);
+        }, 500);
+        return () => clearInterval(interval);
+    }, [serviceType]);
 
-    // ✨ ย้อนกลับ useEffect นี้ไปเป็นเวอร์ชันที่ทำงานทันที ✨
     useEffect(() => {
+        return () => {
+            if (cameraInstanceRef.current) {
+                cameraInstanceRef.current.stop();
+                cameraInstanceRef.current = null;
+            }
+            if (tfLoopRef.current) {
+                tfLoopRef.current.cancelled = true;
+                tfLoopRef.current = null;
+            }
+            const videoElement = videoRef.current;
+            if (videoElement && videoElement.srcObject) {
+                const tracks = videoElement.srcObject.getTracks();
+                tracks.forEach(track => track.stop());
+                videoElement.srcObject = null;
+            }
+            setIsReady(false);
+        };
+    }, [serviceType, cameraFacingMode]);
+
+    useEffect(() => {
+        if (serviceType === "none") {
+            const videoElement = videoRef.current;
+            if (!videoElement) return;
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacingMode } })
+                .then(stream => {
+                    videoElement.srcObject = stream;
+                    videoElement.play();
+                })
+                .catch(err => {
+                    console.error("Cannot access camera for preview:", err);
+                });
+            landmarksRef.current = null;
+            setIsReady(true);
+            return () => {
+                setIsReady(false);
+            };
+        }
+    }, [serviceType, cameraFacingMode]);
+
+    useEffect(() => {
+        if (serviceType !== "mediapipe") return;
+        mediaPipeService.initialize().then(() => {
+            setIsReady(true);
+        });
+    }, [serviceType]);
+
+    useEffect(() => {
+        if (serviceType !== "mediapipe") return;
         const videoElement = videoRef.current;
-        // เงื่อนไขการหยุดยังคงเดิม
-        if (!videoElement || !isMediaPipeReady) return;
-
+        if (!videoElement || !isReady) return;
         let camera = null;
-
         const startNewCamera = () => {
-            console.log(`(ARSuperDebug) Initializing camera with mode: ${cameraFacingMode}`);
             const faceMesh = mediaPipeService.getInstance();
             if (!faceMesh) return;
-
             faceMesh.onResults((results) => {
                 const canvasElement = canvas2DRef.current;
                 if (!canvasElement || !videoElement || videoElement.videoWidth === 0) return;
@@ -500,20 +499,15 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
                 landmarksRef.current = results.multiFaceLandmarks?.[0] || null;
                 canvasCtx.restore();
             });
-
-            // สร้างและเริ่มกล้องทันที
             camera = new Camera(videoElement, {
                 onFrame: async () => { await faceMesh.send({ image: videoElement }); },
                 width: 1280,
                 height: 720,
                 facingMode: cameraFacingMode
             });
-
             camera.start();
             cameraInstanceRef.current = camera;
         };
-
-        // หยุดกล้องเก่าก่อนเริ่มกล้องใหม่
         if (cameraInstanceRef.current) {
             cameraInstanceRef.current.stop().then(() => {
                 startNewCamera();
@@ -521,22 +515,122 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
         } else {
             startNewCamera();
         }
-
-        // Cleanup function
         return () => {
-            console.log("(ARSuperDebug) Cleaning up camera.");
             if (cameraInstanceRef.current) {
                 cameraInstanceRef.current.stop();
                 cameraInstanceRef.current = null;
             }
         };
-        // Dependency array กลับมาเป็นแบบเดิม
-    }, [cameraFacingMode, isMediaPipeReady]);
+    }, [cameraFacingMode, isReady, serviceType]);
+
+    useEffect(() => {
+        if (serviceType !== "tensorflow") return;
+        let isMounted = true;
+        let loopObj = { cancelled: false };
+        tfLoopRef.current = loopObj;
+        const videoElement = videoRef.current;
+        const canvasElement = canvas2DRef.current;
+        const runTFLoop = async () => {
+            await tensorflowService.initialize();
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacingMode } });
+                videoElement.srcObject = stream;
+                await videoElement.play();
+            } catch (err) {
+                console.error("Cannot access camera for TFJS:", err);
+                setIsReady(false);
+                return;
+            }
+            setIsReady(true);
+            const detectLoop = async () => {
+                if (!isMounted || loopObj.cancelled) return;
+                if (videoElement.readyState < 2) {
+                    requestAnimationFrame(detectLoop);
+                    return;
+                }
+                if (canvasElement) {
+                    canvasElement.width = videoElement.videoWidth;
+                    canvasElement.height = videoElement.videoHeight;
+                    const ctx = canvasElement.getContext("2d");
+                    ctx.save();
+                    ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                    ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+                    ctx.restore();
+                }
+                try {
+                    console.log('[TFJS] video readyState:', videoElement.readyState, 'srcObject:', videoElement.srcObject);
+                    const faces = await tensorflowService.detectFaces(videoElement, true);
+                    console.log('[TFJS] faces:', faces, 'video size:', videoElement.videoWidth, videoElement.videoHeight);
+                    if (faces && faces.length > 0 && faces[0].keypoints && faces[0].keypoints.length >= 1) {
+                        const width = videoElement.videoWidth;
+                        const height = videoElement.videoHeight;
+                        console.log('[TFJS] keypoints:', faces[0].keypoints);
+                        faces[0].keypoints.forEach((pt, i) => {
+                            console.log(`[TFJS] keypoint[${i}]: x=${pt.x}, y=${pt.y}, name=${pt.name}`);
+                        });
+                        if (faces[0].keypoints.every(pt => pt.x === 0 && pt.y === 0)) {
+                            console.warn('[TFJS] All keypoints are (0,0) - model or input problem');
+                        }
+                        // Map 6 จุดไปยัง index mediapipe (mock 468 จุด)
+                        const tfLandmarks = faces[0].keypoints.map(pt => ({ x: 1 - (pt.x / width), y: pt.y / height, z: 0 }));
+                        const mpLandmarks = Array(468).fill(null);
+                        if (tfLandmarks[0]) mpLandmarks[0] = tfLandmarks[0];
+                        if (tfLandmarks[1]) mpLandmarks[13] = tfLandmarks[1];
+                        if (tfLandmarks[2]) mpLandmarks[14] = tfLandmarks[2];
+                        if (tfLandmarks[3]) mpLandmarks[10] = tfLandmarks[3];
+                        if (tfLandmarks[4]) mpLandmarks[152] = tfLandmarks[4];
+                        if (tfLandmarks[5]) mpLandmarks[234] = tfLandmarks[5];
+                        if (tfLandmarks[5]) mpLandmarks[454] = tfLandmarks[5];
+                        landmarksRef.current = mpLandmarks;
+                        // วาด overlay จุดที่ detect ได้
+                        if (canvasElement) {
+                            console.log('[TFJS] draw overlay on canvas', canvasElement.width, canvasElement.height);
+                            const ctx = canvasElement.getContext("2d");
+                            ctx.save();
+                            ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                            ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+                            ctx.fillStyle = '#ff0000';
+                            faces[0].keypoints.forEach(pt => {
+                                ctx.beginPath();
+                                ctx.arc(canvasElement.width - pt.x, pt.y, 4, 0, 2 * Math.PI);
+                                ctx.fill();
+                            });
+                            ctx.restore();
+                        }
+                    } else {
+                        console.warn('[TFJS] No face detected or not enough keypoints', faces);
+                        landmarksRef.current = null;
+                    }
+                } catch {
+                    landmarksRef.current = null;
+                }
+                requestAnimationFrame(detectLoop);
+            };
+            detectLoop();
+        };
+        runTFLoop();
+        return () => {
+            isMounted = false;
+            loopObj.cancelled = true;
+            if (videoElement && videoElement.srcObject) {
+                const tracks = videoElement.srcObject.getTracks();
+                tracks.forEach(track => track.stop());
+                videoElement.srcObject = null;
+            }
+            setIsReady(false);
+        };
+    }, [serviceType, cameraFacingMode]);
 
     return (
         <div className="super-debug-container">
-            <video ref={videoRef} className="input_video" autoPlay playsInline style={{ display: 'none' }} />
-            {isMediaPipeReady && (
+            <video
+                ref={videoRef}
+                className="input_video"
+                autoPlay
+                playsInline
+                style={{ display: serviceType !== 'mediapipe' ? 'block' : 'none', width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0, zIndex: 1, transform: 'scaleX(-1)' }}
+            />
+            {isReady && (
                 <>
                     <canvas ref={canvas2DRef} className="output_canvas_debug" />
                     <ThreeJSErrorBoundary>
@@ -557,6 +651,11 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
                             </Suspense>
                         </Canvas>
                     </ThreeJSErrorBoundary>
+                    {serviceType === "none" && (
+                        <div style={{ color: '#ffaa00', fontWeight: 'bold', fontSize: 20, textAlign: 'center', marginTop: 24 }}>
+                            👁️ Face detection is OFF (3D overlay is static)
+                        </div>
+                    )}
                 </>
             )}
         </div>

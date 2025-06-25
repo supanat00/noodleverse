@@ -4,9 +4,7 @@ import './App.css';
 import LoadingScreen from './components/LoadingScreen/LoadingScreen';
 import PermissionPrompt from './components/PermissionPrompt/PermissionPrompt';
 import { FLAVORS } from './data/flavors';
-
-// import preload modules
-import mediaPipeService from './services/mediaPipeService'
+import adaptiveFaceService from './services/adaptiveFaceService';
 import { preloadGLTF } from './utils/preloadGLTF';
 import { preloadVideo } from './utils/preloadVideo';
 
@@ -56,15 +54,19 @@ function App() {
         const modelUrls = FLAVORS.flatMap(flavor => Object.values(flavor.models));
         const videoUrls = FLAVORS.map(flavor => flavor.videoPublicId).filter(Boolean);
 
-        // 1. Load MediaPipe first (critical for face tracking)
-        console.log("📱 Loading MediaPipe...");
+        // 1. Load Adaptive Face Service first (MediaPipe or TensorFlow.js)
+        console.log("📱 Loading Adaptive Face Service...");
         setLoadingProgress(10);
         await withTimeout(
-          retryWithBackoff(() => mediaPipeService.initialize()),
-          15000, // 15s timeout for MediaPipe
-          "MediaPipe initialization timeout"
+          retryWithBackoff(() => adaptiveFaceService.initialize()),
+          20000, // 20s timeout for face service (longer for TensorFlow.js fallback)
+          "Face detection service initialization timeout"
         );
         setLoadingProgress(30);
+
+        // Log which service was selected
+        const serviceInfo = adaptiveFaceService.getServiceInfo();
+        console.log(`🎯 Face detection service selected: ${serviceInfo.service}`);
 
         // 2. Load 3D models in parallel with individual timeouts
         console.log("🎯 Loading 3D models in parallel...");
@@ -106,7 +108,7 @@ function App() {
         const allPromises = [...modelPromises, ...videoPromises];
         const results = await Promise.allSettled(allPromises);
 
-        // Check if critical assets (MediaPipe + at least one model) loaded successfully
+        // Check if critical assets (Face Service + at least one model) loaded successfully
         const successfulModels = results.slice(0, modelPromises.length).filter(r => r.status === 'fulfilled').length;
         const successfulVideos = results.slice(modelPromises.length).filter(r => r.status === 'fulfilled').length;
 

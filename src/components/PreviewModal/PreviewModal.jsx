@@ -10,17 +10,14 @@ const backgroundCldImage = cld.image('TKO/MAMAOK/images/preview-bg.webp').delive
 const logoCldImage = cld.image('TKO/MAMAOK/images/mama-logo.webp').delivery(quality('auto'));
 
 // --- Helper Component: Preloader ---
-// Component นี้จะโหลดรูปภาพในเบื้องหลังและเรียก callback เมื่อเสร็จสิ้น
-// แต่จะไม่แสดงผลอะไรออกมาเลย (null)
 const ImagePreloader = ({ imageUrl, onLoaded }) => {
     useEffect(() => {
-        const img = new Image();
+        const img = new window.Image();
         img.src = imageUrl;
         img.onload = onLoaded;
     }, [imageUrl, onLoaded]);
     return null;
 };
-
 
 /**
  * PreviewModal
@@ -36,10 +33,9 @@ const PreviewModal = ({ preview, onRetry, onSave, onShare }) => {
     // --- Platform detection ---
     let isIOS_Safari = false;
     try {
-        // เฉพาะ iOS (iPhone/iPad/iPod) หรือ Safari บน iOS เท่านั้น
         isIOS_Safari = isIOS() || (isSafari() && /iP(hone|od|ad)/.test(navigator.userAgent));
     } catch {
-        isIOS_Safari = false; // fallback: แสดงปุ่มบันทึกเสมอ
+        isIOS_Safari = false;
     }
 
     // Effect จัดการการเล่นวิดีโอ (เหมือนเดิม)
@@ -52,87 +48,119 @@ const PreviewModal = ({ preview, onRetry, onSave, onShare }) => {
         }
     }, [preview.type, preview.src]);
 
-    // Callback ที่จะถูกเรียกเมื่อภาพพื้นหลังโหลดเสร็จ
-    const handleBackgroundLoaded = () => {
-        // เมื่อพื้นหลังพร้อม เราก็พร้อมที่จะแสดง Modal ทั้งหมด
-        setAreAssetsReady(true);
-    };
+    // Preload background image before showing modal
+    const handleBackgroundLoaded = () => setAreAssetsReady(true);
 
     return (
-        // เราจะใช้ "Preloader" เพื่อโหลดภาพพื้นหลังก่อน
-        // และใช้ State `areAssetsReady` ควบคุมการแสดงผลของ Modal จริง
         <>
             <ImagePreloader
                 imageUrl={backgroundCldImage.toURL()}
                 onLoaded={handleBackgroundLoaded}
             />
-
-            {/* Modal ทั้งหมดจะถูกซ่อนไว้ด้วย CSS จนกว่า areAssetsReady จะเป็น true */}
-            <div
-                className={`preview-modal ${areAssetsReady ? 'visible' : ''}`}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="preview-heading"
-            >
-                <AdvancedImage
-                    cldImg={backgroundCldImage}
-                    alt="" // decorative image
-                    className="preview-background-image"
-                />
-
-                <h2 id="preview-heading" className="visually-hidden">Content Preview</h2>
-
-                <AdvancedImage
-                    cldImg={logoCldImage}
-                    alt="Brand Logo"
-                    className="preview-brand-logo"
-                />
-
-                <div className="preview-content-frame">
-                    {/* เราจะใส่กรอบ (border) ให้กับ content โดยตรง แทนที่จะหวังพึ่ง frame */}
-                    {preview.type === 'image' && (
-                        <img
-                            src={preview.src}
-                            alt="Capture preview"
-                            className="preview-content with-border"
+            {areAssetsReady && (
+                <div
+                    className={`preview-modal visible`}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="preview-heading"
+                >
+                    <AdvancedImage
+                        cldImg={backgroundCldImage}
+                        alt=""
+                        className="preview-modal-bg"
+                        style={{
+                            position: 'fixed',
+                            zIndex: 0,
+                            top: 0,
+                            left: 0,
+                            width: '100vw',
+                            height: '100vh',
+                            objectFit: 'cover',
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                            backgroundRepeat: 'no-repeat',
+                            pointerEvents: 'none'
+                        }}
+                        aria-hidden="true"
+                    />
+                    <div className="preview-content-frame" style={{ position: 'relative', overflow: 'hidden' }}>
+                        <AdvancedImage
+                            cldImg={backgroundCldImage}
+                            alt=""
+                            className="preview-background-image true-bg"
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                                borderRadius: '20px',
+                                zIndex: 0
+                            }}
                         />
-                    )}
-                    {preview.type === 'video' && (
-                        <video
-                            ref={videoRef}
-                            src={preview.src}
-                            autoPlay
-                            loop
-                            muted
-                            playsInline
-                            className="preview-content with-border"
-                        />
-                    )}
-                </div>
+                        {/* เราจะใส่กรอบ (border) ให้กับ content โดยตรง แทนที่จะหวังพึ่ง frame */}
+                        {preview.type === 'image' && (
+                            <img
+                                src={preview.src}
+                                alt="Capture preview"
+                                className="preview-content with-border"
+                                style={{ position: 'relative', zIndex: 1 }}
+                            />
+                        )}
+                        {preview.type === 'video' && (
+                            <video
+                                ref={videoRef}
+                                src={preview.src}
+                                autoPlay
+                                loop
+                                muted
+                                playsInline
+                                className="preview-content with-border"
+                                style={{ position: 'relative', zIndex: 1 }}
+                            />
+                        )}
+                    </div>
 
-                {/* --- Layout ปุ่มแบบใหม่ --- */}
-                <div className="preview-actions-container">
-                    {isIOS_Safari ? (
-                        // iOS/Safari: ปุ่มเดียว (แชร์)
-                        <button className="preview-button secondary full-width" onClick={onShare}>
-                            แชร์
-                        </button>
-                    ) : (
-                        // ทุก platform อื่น: แยกปุ่มบันทึก/แชร์
-                        <div className="preview-actions-top-row">
-                            <button className="preview-button secondary" onClick={onSave}>
-                                บันทึก
-                            </button>
-                            <button className="preview-button secondary" onClick={onShare}>
-                                แชร์
-                            </button>
-                        </div>
-                    )}
-                    <button className="preview-button primary full-width" onClick={onRetry}>
-                        เล่นอีกครั้ง
-                    </button>
+                    <h2 id="preview-heading" className="visually-hidden">Content Preview</h2>
+
+                    <AdvancedImage
+                        cldImg={logoCldImage}
+                        alt="Brand Logo"
+                        className={`preview-brand-logo${window.innerHeight < 600 ? ' hide' : ''}`}
+                    />
+
+                    {/* --- Layout ปุ่มแบบใหม่ --- */}
+                    <div className="preview-actions-container">
+                        {isIOS_Safari ? (
+                            <>
+                                <div className="preview-actions-top-row">
+                                    <button className="preview-button primary" onClick={onRetry}>
+                                        เล่นอีกครั้ง
+                                    </button>
+                                    <button className="preview-button secondary" onClick={onShare}>
+                                        บันทึก
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="preview-actions-top-row">
+                                    <button className="preview-button secondary" onClick={onSave}>
+                                        บันทึก
+                                    </button>
+                                    <button className="preview-button secondary" onClick={onShare}>
+                                        แชร์
+                                    </button>
+                                </div>
+                                <button className="preview-button primary full-width retry-bottom-btn" style={{ marginTop: '14px' }} onClick={onRetry}>
+                                    เล่นอีกครั้ง
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
         </>
     );
 };

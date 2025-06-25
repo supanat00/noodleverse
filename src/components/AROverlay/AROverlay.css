@@ -7,8 +7,86 @@
   width: 100%;
   height: 100%;
   position: relative; /* เป็น基準ให้ child ที่เป็น absolute */
-  background-color: #000; /* สีพื้นหลังเผื่อกล้องยังไม่โหลด */
+  background-color: transparent;
   overflow: hidden;
+}
+
+/* --- Compatibility Checker Button --- */
+.compatibility-toggle-btn-main {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #ffd700, #ffa500);
+  color: #000;
+  border: none;
+  border-radius: 50%;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2001;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+  opacity: 1;
+  padding: 0;
+}
+
+.compatibility-toggle-btn-main:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 16px rgba(255, 215, 0, 0.28);
+}
+
+.compatibility-toggle-btn-main:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* --- Compatibility Modal --- */
+.compatibility-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.compatibility-modal {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  max-height: 90vh;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 18px;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+}
+
+.flex-content {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.flex-footer {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.92);
+  padding: 16px 0 0 0;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
+  display: flex;
+  justify-content: center;
+  z-index: 2;
 }
 
 /* --- User Camera Feed --- */
@@ -21,39 +99,155 @@
 /* --- Presenter Video Container --- */
 .presenter-video-container {
   position: absolute;
-  /* 1. เปลี่ยนการอ้างอิงตำแหน่งจาก % ของความสูง (vh) มาเป็นค่าคงที่ (rem) */
-  /*    'rem' จะอิงตามขนาดฟอนต์ของ root ซึ่งมีความเสถียรกว่า vh/vw */
-  top: 2rem; /* หรือ 32px (1rem = 16px โดยประมาณ) */
-
-  left: 50%;
-  transform: translateX(-50%);
-
-  /* 2. กำหนดความกว้างหลัก และ "จำกัด" ขนาดสูงสุด */
-  width: 90%; /* ให้กว้าง 90% ของจอ (จะทำงานดีบนมือถือแนวตั้ง) */
-  max-width: 450px; /* แต่ห้ามกว้างเกิน 450px เด็ดขาด! (แก้ปัญหาจอกว้าง) */
-
-  /* 3. เปลี่ยน aspect-ratio ให้เหมาะสมกับวิดีโอมากขึ้น (ปกติวิดีโอเป็น 16:9) */
-  aspect-ratio: 3 / 2;
-
-  border-radius: 20px;
+  top: 32px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: 88%;
+  max-width: 420px;
+  aspect-ratio: 16 / 9;
+  background: transparent;
+  border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-  z-index: 10;
+  box-shadow: none;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  pointer-events: none;
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 .presenter-video {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  z-index: 10;
+  background: transparent;
+  display: none;
+  pointer-events: none;
+}
+
+.presenter-video.visible {
+  display: block;
+  z-index: 1;
 }
 
 .client-logo {
-  /* กำหนดตำแหน่งให้อยู่มุมซ้ายบนของ container */
   position: absolute;
-  top: 15px;
-  left: 15px;
-  width: 60px; /* ปรับขนาดตามความเหมาะสม */
+  top: 6%;
+  left: 4%;
+  width: 18%;
+  min-width: 40px;
+  max-width: 90px;
   height: auto;
-  z-index: 10; /* ทำให้โลโก้ลอยอยู่เหนือวิดีโอเสมอ */
+  z-index: 1210;
+  background: transparent;
+  border-radius: 18px;
+  padding: 0;
+  box-shadow: none;
+  border: none;
+  transition: none;
+}
+
+.client-logo.hide {
+  display: none !important;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .compatibility-toggle-btn-main {
+    top: 15px;
+    right: 15px;
+    width: 45px;
+    height: 45px;
+    font-size: 18px;
+  }
+
+  .compatibility-modal-overlay {
+    padding: 10px;
+  }
+
+  .compatibility-modal {
+    max-height: 95vh;
+  }
+}
+
+@media (max-width: 480px) {
+  .compatibility-toggle-btn-main {
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 600px) {
+  .presenter-video-container {
+    top: 20px;
+    margin: 0 auto;
+    border-radius: 18px;
+    max-width: 98vw;
+    width: 96vw;
+    aspect-ratio: 16 / 9;
+  }
+  .client-logo {
+    border-radius: 18px;
+  }
+  .compatibility-toggle-btn-main {
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+}
+
+@media (min-width: 601px) and (max-width: 1024px) {
+  .presenter-video-container {
+    top: 36px;
+    margin: 0 auto;
+    max-width: 480px;
+    width: 84vw;
+    border-radius: 18px;
+    aspect-ratio: 16 / 9;
+  }
+  .client-logo {
+    border-radius: 18px;
+  }
+}
+
+@media (min-width: 1025px) {
+  .presenter-video-container {
+    top: 32px;
+    margin: 0 auto;
+    max-width: 420px;
+    width: 88%;
+    border-radius: 18px;
+    aspect-ratio: 16 / 9;
+  }
+  .client-logo {
+    border-radius: 18px;
+  }
+}
+
+@media (max-height: 600px) {
+  .client-logo {
+    top: 2px;
+    left: 4px;
+    width: 28px;
+  }
+}
+
+/* Add margin to flavor selector to avoid overlap with debug button */
+.flavor-selector-container {
+  margin-bottom: 64px;
+}
+@media (max-width: 600px) {
+  .flavor-selector-container {
+    margin-bottom: 48px;
+  }
 }

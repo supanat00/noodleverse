@@ -74,6 +74,19 @@ const mediaPipeService = {
     }
     return faceMeshInstance;
   },
+
+  /**
+   * Cleanup resources
+   */
+  dispose() {
+    if (faceMeshInstance && typeof faceMeshInstance.close === "function") {
+      faceMeshInstance.close();
+    }
+    faceMeshInstance = null;
+    isInitialized = false;
+    isInitializing = false;
+    initializationPromise = null;
+  },
 };
 
 export default mediaPipeService;

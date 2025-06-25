@@ -1,25 +1,59 @@
 /* src/components/PreviewModal/PreviewModal.css */
 
 .preview-modal {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   pointer-events: auto;
-  z-index: 100;
+  z-index: 2000;
   overflow: hidden;
-
-  /* เริ่มต้นด้วยการซ่อน Modal ไว้ก่อน */
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.3s ease-out, visibility 0.3s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 16px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
+}
+
+.preview-modal-bg {
+  position: fixed;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
+@media (max-width: 600px) {
+  .preview-modal {
+    padding-top: clamp(8px, 3vh, 20px);
+    padding-bottom: clamp(8px, 3vh, 20px);
+  }
+}
+
+@media (min-width: 601px) and (max-width: 1024px) {
+  .preview-modal {
+    padding-top: clamp(16px, 5vh, 40px);
+    padding-bottom: clamp(12px, 5vh, 40px);
+  }
 }
 
 /* เมื่อพร้อมแสดงผล ให้ค่อยๆ Fade In เข้ามา */
 .preview-modal.visible {
   opacity: 1;
   visibility: visible;
+  justify-content: center;
 }
 
 /* Helper class (เหมือนเดิม) */
@@ -36,37 +70,53 @@
 }
 
 .preview-background-image {
+  display: none; /* Hide background image for now, use solid color */
+}
+
+.preview-background-image.true-bg {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  z-index: 1;
+  border-radius: 20px;
+  z-index: 0;
 }
 
 .preview-brand-logo {
   position: absolute;
-  top: calc(4vh + env(safe-area-inset-top, 0px));
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
   left: 50%;
   transform: translateX(-50%);
   width: clamp(80px, 20vw, 120px);
   height: auto;
   z-index: 3;
+  margin: 0;
+  align-self: center;
+}
+
+@media (max-height: 600px) {
+  .preview-brand-logo {
+    display: none !important;
+  }
 }
 
 .preview-content-frame {
-  position: absolute;
-  /* ปรับตำแหน่ง Y ขึ้นไปเล็กน้อย เพื่อให้มีที่สำหรับปุ่ม */
-  top: 44%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  /* ลดขนาดลงเล็กน้อยเพื่อให้มีพื้นที่รอบๆ */
-  width: 75%;
-  max-width: 400px;
-  z-index: 2;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  max-width: min(75vw, 550px);
   aspect-ratio: 9 / 16;
+  height: auto;
+  z-index: 2;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 16px auto 0 auto;
+  background: none;
+  border-radius: 20px;
+  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.12);
 }
 
 .preview-content {
@@ -74,47 +124,65 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: 20px;
 }
 
 /* ✨ เพิ่มกรอบสีขาวให้ตัว content โดยตรง ✨ */
 .preview-content.with-border {
-  border-radius: 24px;
+  border-radius: 20px;
   border: 3px solid white;
-  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.12);
   overflow: hidden; /* สำคัญมาก สำหรับ video/img ที่มี border-radius */
 }
 
 /* --- ✨ Layout ปุ่มแบบใหม่ ✨ --- */
 .preview-actions-container {
-  position: absolute;
-  bottom: calc(12vh + env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  transform: translateX(-50%);
+  position: static;
+  width: 100%;
+  max-width: min(75vw, 550px);
+  margin: 18px auto 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
   z-index: 3;
-  width: 65%;
-  max-width: 420px;
+  padding: 0;
+  box-sizing: border-box;
+  align-items: stretch;
+  justify-content: center;
 }
 
 .preview-actions-top-row {
   display: flex;
-  gap: 12px;
+  flex-direction: row;
+  gap: 16px;
   width: 100%;
+  margin: 0;
+  align-items: stretch;
+}
+
+.preview-actions-top-row > .preview-button {
+  width: auto;
+  flex: 1 1 0%;
+  min-width: 0;
 }
 
 .preview-button {
-  flex: 1; /* ให้ปุ่มในแถวบนแบ่งพื้นที่เท่ากัน */
-  padding: 14px 20px; /* เพิ่ม padding เล็กน้อย */
-  border-radius: 30px;
+  flex: 1 1 0%;
+  min-width: 0;
+  max-width: 100%;
+  width: auto;
+  font-size: 1.08rem;
+  padding: 10px 0;
+  border-radius: 20px;
   border: none;
-  font-size: 1rem;
   font-weight: bold;
   cursor: pointer;
   transition: all 0.2s ease-in-out;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  -webkit-tap-highlight-color: transparent; /* ลบ highlight บน mobile */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  -webkit-tap-highlight-color: transparent;
+  background-color: #fff;
+  color: #333;
+  margin: 0;
 }
 
 .preview-button:hover {
@@ -129,18 +197,27 @@
 
 /* ปุ่มหลัก (สีขาว) */
 .preview-button.primary {
-  background-color: white;
+  background-color: #fff;
   color: #333;
+  border: 1px solid #e0e0e0;
 }
 
 /* ปุ่มรอง (โปร่งแสง) */
 .preview-button.secondary {
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: #fff;
   color: #444;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid #e0e0e0;
 }
 
 /* ปุ่มที่กว้างเต็มพื้นที่ */
 .preview-button.full-width {
   width: 100%;
+  margin-top: 12px;
+}
+
+/* ปรับ vertical alignment ให้ preview+ปุ่มอยู่กึ่งกลางแนวตั้งในจอสูง */
+@media (min-height: 700px) {
+  .preview-modal.visible {
+    justify-content: center;
+  }
 }
