@@ -1555,7 +1555,7 @@
   resolved "https://registry.npmjs.org/@mediapipe/drawing_utils/-/drawing_utils-0.3.1675466124.tgz"
   integrity sha512-/IWIB/iYRMtiUKe3k7yGqvwseWHCOqzVpRDfMgZ6gv9z7EEimg6iZbRluoPbcNKHbYSxN5yOvYTzUYb8KVf22Q==
 
-"@mediapipe/face_detection@~0.4.0":
+"@mediapipe/face_detection@^0.4.1646425229", "@mediapipe/face_detection@~0.4.0":
   version "0.4.1646425229"
   resolved "https://registry.npmjs.org/@mediapipe/face_detection/-/face_detection-0.4.1646425229.tgz"
   integrity sha512-aeCN+fRAojv9ch3NXorP6r5tcGVLR3/gC1HmtqB0WEZBRXrdP6/3W/sGR0dHr1iT6ueiK95G9PVjbzFosf/hrg==
