@@ -47,6 +47,9 @@ const manifestForPlugin = {
     start_url: "/",
     orientation: "portrait",
   },
+  workbox: {
+    maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
+  },
 };
 
 // https://vitejs.dev/config/
