@@ -1,59 +1,17 @@
 import mediaPipeService from "./mediaPipeService";
-import tensorflowService from "./tensorflowService";
 
 // ตัวแปรระดับ module
-let selectedService = "none";
+let selectedService = "mediapipe";
 let isInitializing = false;
-let isInitialized = true;
+let isInitialized = false;
 let initializationPromise = null;
 
 const adaptiveFaceService = {
   /**
-   * ตรวจสอบและเลือก service ที่เหมาะสมที่สุด
-   */
-  async selectBestService() {
-    console.log("🔍 Selecting best face detection service...");
-
-    // ลอง MediaPipe ก่อน (เร็วกว่าและมีประสิทธิภาพดีกว่า)
-    try {
-      console.log("📱 Testing MediaPipe compatibility...");
-      await mediaPipeService.initialize();
-      console.log("✅ MediaPipe selected as primary service");
-      return "mediapipe";
-    } catch (mediaPipeError) {
-      console.warn(
-        "⚠️ MediaPipe failed, trying TensorFlow.js:",
-        mediaPipeError.message
-      );
-
-      // ลอง TensorFlow.js
-      try {
-        console.log("🧠 Testing TensorFlow.js compatibility...");
-        const compatibility = await tensorflowService.checkCompatibility();
-
-        if (!compatibility.supported) {
-          throw new Error(
-            `TensorFlow.js not supported: ${compatibility.reason}`
-          );
-        }
-
-        await tensorflowService.initialize();
-        console.log("✅ TensorFlow.js selected as fallback service");
-        return "tensorflow";
-      } catch (tensorflowError) {
-        console.error("❌ Both services failed:", tensorflowError.message);
-        throw new Error(
-          `No compatible face detection service found. MediaPipe: ${mediaPipeError.message}, TensorFlow: ${tensorflowError.message}`
-        );
-      }
-    }
-  },
-
-  /**
-   * เริ่มต้น service ที่เหมาะสมที่สุด
+   * เริ่มต้น MediaPipe service
    */
   async initialize() {
-    if (isInitialized && selectedService) {
+    if (isInitialized && selectedService === "mediapipe") {
       return Promise.resolve(selectedService);
     }
     if (isInitializing) {
@@ -67,21 +25,20 @@ const adaptiveFaceService = {
 
     const doInitialize = async () => {
       try {
-        const serviceType = await this.selectBestService();
-        selectedService = serviceType;
+        console.log("📱 Initializing MediaPipe Face Service...");
+        await mediaPipeService.initialize();
+        selectedService = "mediapipe";
         isInitialized = true;
         isInitializing = false;
 
-        console.log(
-          `🎯 Adaptive Face Service initialized with: ${serviceType.toUpperCase()}`
-        );
+        console.log("🎯 MediaPipe Face Service initialized successfully");
         return selectedService;
       } catch (error) {
-        console.error("Adaptive Face Service: Initialization Failed!", error);
+        console.error("MediaPipe Face Service: Initialization Failed!", error);
         if (retries < MAX_RETRIES) {
           retries++;
           console.log(
-            `🔄 Retrying adaptive service selection (${retries}/${MAX_RETRIES})...`
+            `🔄 Retrying MediaPipe initialization (${retries}/${MAX_RETRIES})...`
           );
           await new Promise((res) => setTimeout(res, RETRY_DELAY));
           return doInitialize();
@@ -97,61 +54,43 @@ const adaptiveFaceService = {
   },
 
   /**
-   * ดึง instance ของ service ที่เลือกแล้ว
+   * ดึง instance ของ MediaPipe service
    */
   getInstance() {
-    if (!isInitialized || !selectedService) {
+    if (!isInitialized || selectedService !== "mediapipe") {
       console.warn(
-        "Adaptive Face Service: getInstance() called before initialization is complete."
+        "MediaPipe Face Service: getInstance() called before initialization is complete."
       );
       return null;
     }
 
-    if (selectedService === "mediapipe") {
-      return mediaPipeService.getInstance();
-    } else if (selectedService === "tensorflow") {
-      return tensorflowService.getInstance();
-    } else if (selectedService === "none") {
-      return null;
-    }
-
-    return null;
+    return mediaPipeService.getInstance();
   },
 
   /**
    * ตรวจจับใบหน้าจาก image element
    */
   async detectFaces(imageElement) {
-    if (!isInitialized || !selectedService) {
-      throw new Error("Adaptive Face Service not initialized");
-    }
-
-    if (selectedService === "none") {
-      // ปิดระบบจับหน้า
-      return null;
+    if (!isInitialized || selectedService !== "mediapipe") {
+      throw new Error("MediaPipe Face Service not initialized");
     }
 
     try {
-      if (selectedService === "mediapipe") {
-        const faceMesh = mediaPipeService.getInstance();
-        return new Promise((resolve, reject) => {
-          faceMesh.onResults((results) => {
-            if (
-              results.multiFaceLandmarks &&
-              results.multiFaceLandmarks.length > 0
-            ) {
-              resolve(results.multiFaceLandmarks[0]);
-            } else {
-              resolve(null);
-            }
-          });
-
-          faceMesh.send({ image: imageElement }).catch(reject);
+      const faceMesh = mediaPipeService.getInstance();
+      return new Promise((resolve, reject) => {
+        faceMesh.onResults((results) => {
+          if (
+            results.multiFaceLandmarks &&
+            results.multiFaceLandmarks.length > 0
+          ) {
+            resolve(results.multiFaceLandmarks[0]);
+          } else {
+            resolve(null);
+          }
         });
-      } else if (selectedService === "tensorflow") {
-        const faces = await tensorflowService.detectFaces(imageElement);
-        return faces.length > 0 ? faces[0] : null;
-      }
+
+        faceMesh.send({ image: imageElement }).catch(reject);
+      });
     } catch (error) {
       console.error("Face detection failed:", error);
       throw error;
@@ -162,14 +101,10 @@ const adaptiveFaceService = {
    * รับข้อมูลเกี่ยวกับ service ที่ใช้อยู่
    */
   getServiceInfo() {
-    if (!isInitialized) {
-      return { status: "not_initialized" };
-    }
-
     return {
-      status: "initialized",
       service: selectedService,
-      timestamp: new Date().toISOString(),
+      status: isInitialized ? "READY" : "NOT_READY",
+      timestamp: Date.now(),
     };
   },
 
@@ -183,16 +118,12 @@ const adaptiveFaceService = {
 
     // Cleanup service เก่าก่อน switch เสมอ
     mediaPipeService.dispose();
-    tensorflowService.dispose();
 
     console.log(`🔄 Force switching to ${serviceType}...`);
 
     if (serviceType === "mediapipe") {
       await mediaPipeService.initialize();
       selectedService = "mediapipe";
-    } else if (serviceType === "tensorflow") {
-      await tensorflowService.initialize();
-      selectedService = "tensorflow";
     } else if (serviceType === "none") {
       // ปิดระบบจับหน้า ไม่ต้อง initialize อะไร
       selectedService = "none";
@@ -210,15 +141,11 @@ const adaptiveFaceService = {
    */
   dispose() {
     if (selectedService === "mediapipe") {
-      // MediaPipe cleanup
       const faceMesh = mediaPipeService.getInstance();
       if (faceMesh) {
         faceMesh.close();
       }
-    } else if (selectedService === "tensorflow") {
-      tensorflowService.dispose();
     }
-
     selectedService = null;
     isInitialized = false;
     isInitializing = false;

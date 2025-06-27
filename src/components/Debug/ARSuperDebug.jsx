@@ -5,7 +5,6 @@ import { Preload, useVideoTexture, useTexture } from '@react-three/drei';
 import mediaPipeService from "../../services/mediaPipeService";
 import { Camera } from "@mediapipe/camera_utils";
 import adaptiveFaceService from "../../services/adaptiveFaceService";
-import tensorflowService from "../../services/tensorflowService";
 
 import './ARSuperDebug.css';
 
@@ -47,7 +46,6 @@ function useRobustGLTF(url) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        let isMounted = true;
         setIsLoading(true);
         setError(null);
 
@@ -61,24 +59,16 @@ function useRobustGLTF(url) {
                     )
                 ]);
 
-                if (isMounted) {
-                    setGltf(result);
-                    setIsLoading(false);
-                }
+                setGltf(result);
+                setIsLoading(false);
             } catch (err) {
                 console.error(`Failed to load model: ${url}`, err);
-                if (isMounted) {
-                    setError(err);
-                    setIsLoading(false);
-                }
+                setError(err);
+                setIsLoading(false);
             }
         };
 
         loadModel();
-
-        return () => {
-            isMounted = false;
-        };
     }, [url]);
 
     return { gltf, error, isLoading };
@@ -91,7 +81,6 @@ function useRobustTexture(url) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        let isMounted = true;
         setIsLoading(true);
         setError(null);
 
@@ -115,24 +104,16 @@ function useRobustTexture(url) {
                     );
                 });
 
-                if (isMounted) {
-                    setTexture(result);
-                    setIsLoading(false);
-                }
+                setTexture(result);
+                setIsLoading(false);
             } catch (err) {
                 console.error(`Failed to load texture: ${url}`, err);
-                if (isMounted) {
-                    setError(err);
-                    setIsLoading(false);
-                }
+                setError(err);
+                setIsLoading(false);
             }
         };
 
         loadTexture();
-
-        return () => {
-            isMounted = false;
-        };
     }, [url]);
 
     return { texture, error, isLoading };
@@ -304,6 +285,13 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
         if (propModel) propModel.visible = false;
     }, [propModel]);
 
+    const getPoint = (arr, idx) => {
+        const pt = arr?.[idx];
+        if (!pt) return null;
+        if (Array.isArray(pt)) return { x: pt[0], y: pt[1], z: pt[2] ?? 0 };
+        return { x: pt.x, y: pt.y, z: pt.z ?? 0 };
+    };
+
     useFrame((state, delta) => {
         const group = groupRef.current;
         const chopstickGroup = chopstickGroupRef.current;
@@ -324,20 +312,25 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
         }
 
         // --- คำนวณตำแหน่งและทิศทางการหมุน (เหมือนเดิม) ---
-        const anchorPoint = landmarks[152];
+        const anchorPoint = getPoint(landmarks, 152);
+        if (!anchorPoint) return;
         const target = new THREE.Vector3();
-        if (anchorPoint) {
-            const screenX = (-anchorPoint.x + 0.5) * 2;
-            const screenY = -(anchorPoint.y - 0.5) * 2;
-            state.raycaster.setFromCamera({ x: screenX, y: screenY }, camera);
-            state.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), target);
-        }
-        const forehead = new THREE.Vector3(landmarks[10].x, landmarks[10].y, landmarks[10].z);
-        const chin = new THREE.Vector3(landmarks[152].x, landmarks[152].y, landmarks[152].z);
-        const leftCheek = new THREE.Vector3(landmarks[234].x, landmarks[234].y, landmarks[234].z);
-        const rightCheek = new THREE.Vector3(landmarks[454].x, landmarks[454].y, landmarks[454].z);
-        const yAxis = new THREE.Vector3().subVectors(forehead, chin).normalize();
-        const xAxis = new THREE.Vector3().subVectors(rightCheek, leftCheek).normalize();
+        const screenX = (-anchorPoint.x + 0.5) * 2;
+        const screenY = -(anchorPoint.y - 0.5) * 2;
+        state.raycaster.setFromCamera({ x: screenX, y: screenY }, camera);
+        state.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), target);
+
+        const forehead = getPoint(landmarks, 10);
+        const chin = getPoint(landmarks, 152);
+        const leftCheek = getPoint(landmarks, 234);
+        const rightCheek = getPoint(landmarks, 454);
+        if (!forehead || !chin || !leftCheek || !rightCheek) return;
+        const foreheadVec = new THREE.Vector3(forehead.x, forehead.y, forehead.z);
+        const chinVec = new THREE.Vector3(chin.x, chin.y, chin.z);
+        const leftCheekVec = new THREE.Vector3(leftCheek.x, leftCheek.y, leftCheek.z);
+        const rightCheekVec = new THREE.Vector3(rightCheek.x, rightCheek.y, rightCheek.z);
+        const yAxis = new THREE.Vector3().subVectors(foreheadVec, chinVec).normalize();
+        const xAxis = new THREE.Vector3().subVectors(rightCheekVec, leftCheekVec).normalize();
         const zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
         const rotationMatrix = new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis);
         const faceQuaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
@@ -353,8 +346,8 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
         }
 
         // --- Logic การอ้าปาก/ปิดปาก: เล่น/หยุด/รีเซ็ตอนิเมชัน prop ---
-        const upperLip = landmarks[13];
-        const lowerLip = landmarks[14];
+        const upperLip = getPoint(landmarks, 13);
+        const lowerLip = getPoint(landmarks, 14);
         if (upperLip && lowerLip) {
             const mouthOpening = Math.abs(lowerLip.y - upperLip.y) * 1000;
             const MOUTH_OPEN_THRESHOLD = 15;
@@ -455,16 +448,18 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
     useEffect(() => {
         if (serviceType === "none") {
             const videoElement = videoRef.current;
-            if (!videoElement) return;
+            stopAllStreams(videoElement, cameraInstanceRef);
+            landmarksRef.current = null;
             navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacingMode } })
                 .then(stream => {
                     videoElement.srcObject = stream;
-                    videoElement.play();
+                    videoElement.onloadedmetadata = () => {
+                        videoElement.play().catch(e => console.warn("Video play failed:", e));
+                    };
                 })
                 .catch(err => {
                     console.error("Cannot access camera for preview:", err);
                 });
-            landmarksRef.current = null;
             setIsReady(true);
             return () => {
                 setIsReady(false);
@@ -483,6 +478,12 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
         if (serviceType !== "mediapipe") return;
         const videoElement = videoRef.current;
         if (!videoElement || !isReady) return;
+        // หยุด stream เดิมก่อน
+        if (videoElement.srcObject) {
+            const tracks = videoElement.srcObject.getTracks();
+            tracks.forEach(track => track.stop());
+            videoElement.srcObject = null;
+        }
         let camera = null;
         const startNewCamera = () => {
             const faceMesh = mediaPipeService.getInstance();
@@ -510,10 +511,18 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
         };
         if (cameraInstanceRef.current) {
             cameraInstanceRef.current.stop().then(() => {
+                stopAllStreams(videoRef.current, cameraInstanceRef);
                 startNewCamera();
             });
         } else {
+            stopAllStreams(videoRef.current, cameraInstanceRef);
             startNewCamera();
+        }
+        // รอ onloadedmetadata ก่อน play
+        if (videoElement) {
+            videoElement.onloadedmetadata = () => {
+                videoElement.play().catch(e => console.warn("Video play failed:", e));
+            };
         }
         return () => {
             if (cameraInstanceRef.current) {
@@ -522,104 +531,6 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
             }
         };
     }, [cameraFacingMode, isReady, serviceType]);
-
-    useEffect(() => {
-        if (serviceType !== "tensorflow") return;
-        let isMounted = true;
-        let loopObj = { cancelled: false };
-        tfLoopRef.current = loopObj;
-        const videoElement = videoRef.current;
-        const canvasElement = canvas2DRef.current;
-        const runTFLoop = async () => {
-            await tensorflowService.initialize();
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacingMode } });
-                videoElement.srcObject = stream;
-                await videoElement.play();
-            } catch (err) {
-                console.error("Cannot access camera for TFJS:", err);
-                setIsReady(false);
-                return;
-            }
-            setIsReady(true);
-            const detectLoop = async () => {
-                if (!isMounted || loopObj.cancelled) return;
-                if (videoElement.readyState < 2) {
-                    requestAnimationFrame(detectLoop);
-                    return;
-                }
-                if (canvasElement) {
-                    canvasElement.width = videoElement.videoWidth;
-                    canvasElement.height = videoElement.videoHeight;
-                    const ctx = canvasElement.getContext("2d");
-                    ctx.save();
-                    ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-                    ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
-                    ctx.restore();
-                }
-                try {
-                    console.log('[TFJS] video readyState:', videoElement.readyState, 'srcObject:', videoElement.srcObject);
-                    const faces = await tensorflowService.detectFaces(videoElement, true);
-                    console.log('[TFJS] faces:', faces, 'video size:', videoElement.videoWidth, videoElement.videoHeight);
-                    if (faces && faces.length > 0 && faces[0].keypoints && faces[0].keypoints.length >= 1) {
-                        const width = videoElement.videoWidth;
-                        const height = videoElement.videoHeight;
-                        console.log('[TFJS] keypoints:', faces[0].keypoints);
-                        faces[0].keypoints.forEach((pt, i) => {
-                            console.log(`[TFJS] keypoint[${i}]: x=${pt.x}, y=${pt.y}, name=${pt.name}`);
-                        });
-                        if (faces[0].keypoints.every(pt => pt.x === 0 && pt.y === 0)) {
-                            console.warn('[TFJS] All keypoints are (0,0) - model or input problem');
-                        }
-                        // Map 6 จุดไปยัง index mediapipe (mock 468 จุด)
-                        const tfLandmarks = faces[0].keypoints.map(pt => ({ x: 1 - (pt.x / width), y: pt.y / height, z: 0 }));
-                        const mpLandmarks = Array(468).fill(null);
-                        if (tfLandmarks[0]) mpLandmarks[0] = tfLandmarks[0];
-                        if (tfLandmarks[1]) mpLandmarks[13] = tfLandmarks[1];
-                        if (tfLandmarks[2]) mpLandmarks[14] = tfLandmarks[2];
-                        if (tfLandmarks[3]) mpLandmarks[10] = tfLandmarks[3];
-                        if (tfLandmarks[4]) mpLandmarks[152] = tfLandmarks[4];
-                        if (tfLandmarks[5]) mpLandmarks[234] = tfLandmarks[5];
-                        if (tfLandmarks[5]) mpLandmarks[454] = tfLandmarks[5];
-                        landmarksRef.current = mpLandmarks;
-                        // วาด overlay จุดที่ detect ได้
-                        if (canvasElement) {
-                            console.log('[TFJS] draw overlay on canvas', canvasElement.width, canvasElement.height);
-                            const ctx = canvasElement.getContext("2d");
-                            ctx.save();
-                            ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-                            ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
-                            ctx.fillStyle = '#ff0000';
-                            faces[0].keypoints.forEach(pt => {
-                                ctx.beginPath();
-                                ctx.arc(canvasElement.width - pt.x, pt.y, 4, 0, 2 * Math.PI);
-                                ctx.fill();
-                            });
-                            ctx.restore();
-                        }
-                    } else {
-                        console.warn('[TFJS] No face detected or not enough keypoints', faces);
-                        landmarksRef.current = null;
-                    }
-                } catch {
-                    landmarksRef.current = null;
-                }
-                requestAnimationFrame(detectLoop);
-            };
-            detectLoop();
-        };
-        runTFLoop();
-        return () => {
-            isMounted = false;
-            loopObj.cancelled = true;
-            if (videoElement && videoElement.srcObject) {
-                const tracks = videoElement.srcObject.getTracks();
-                tracks.forEach(track => track.stop());
-                videoElement.srcObject = null;
-            }
-            setIsReady(false);
-        };
-    }, [serviceType, cameraFacingMode]);
 
     return (
         <div className="super-debug-container">
@@ -661,5 +572,17 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
         </div>
     );
 });
+
+// เพิ่มฟังก์ชันหยุดกล้องทุก engine
+function stopAllStreams(videoElement, cameraInstanceRef) {
+    if (videoElement && videoElement.srcObject) {
+        videoElement.srcObject.getTracks().forEach(track => track.stop());
+        videoElement.srcObject = null;
+    }
+    if (cameraInstanceRef && cameraInstanceRef.current) {
+        cameraInstanceRef.current.stop();
+        cameraInstanceRef.current = null;
+    }
+}
 
 export default ARSuperDebug;

@@ -14,6 +14,8 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
     const [isRecording, setIsRecording] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [preview, setPreview] = useState(null);
+    const [hasBackCamera, setHasBackCamera] = useState(true);
+    const [showCameraWarning, setShowCameraWarning] = useState(false);
 
     const animationFrameIdRef = useRef(null);
     const mediaRecorderRef = useRef(null);
@@ -23,6 +25,24 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
 
     // ตรวจสอบว่า Browser รองรับการอัดวิดีโอหรือไม่
     const isVideoRecordingSupported = 'MediaRecorder' in window && typeof MediaRecorder.isTypeSupported === 'function';
+
+    // ตรวจสอบว่า device มีกล้องหลังหรือไม่
+    useEffect(() => {
+        const checkBackCamera = async () => {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                const hasBackCamera = videoDevices.length > 1;
+                setHasBackCamera(hasBackCamera);
+                console.log(`📱 Device has back camera: ${hasBackCamera} (${videoDevices.length} cameras)`);
+            } catch (error) {
+                console.warn("Cannot enumerate devices:", error);
+                setHasBackCamera(true); // ตั้งค่าเป็น true เผื่อกรณี
+            }
+        };
+
+        checkBackCamera();
+    }, []);
 
     const handleTakePhoto = useCallback(() => {
         console.log("ACTION: Take Photo (Fit Height, Center Horizontally)");
@@ -233,8 +253,19 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
     }, [isRecording, startRecording, stopRecording]);
 
     // --- Utility Functions ---
-    const handleSwitchCamera = useCallback(() => onSwitchCamera(cameraFacingMode === 'user' ? 'environment' : 'user'), [cameraFacingMode, onSwitchCamera]);
-    const handleModeChange = useCallback((e) => setMode(e.target.checked ? 'video' : 'photo'), []);
+    const handleSwitchCamera = useCallback(async () => {
+        if (isRecording || isProcessing) return;
+
+        if (!hasBackCamera) {
+            setShowCameraWarning(true);
+            setTimeout(() => setShowCameraWarning(false), 3000);
+            return;
+        }
+
+        // ถ้ามีกล้องหลังเท่านั้นจึงจะสลับ
+        const newMode = cameraFacingMode === 'user' ? 'environment' : 'user';
+        onSwitchCamera(newMode);
+    }, [cameraFacingMode, onSwitchCamera, hasBackCamera, isRecording, isProcessing]);
     const handleRetry = useCallback(() => setPreview(null), []);
     const handleDownload = useCallback(() => {
         if (!preview?.src) return;
@@ -301,31 +332,61 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
                     <p>กำลังประมวลผล...</p>
                 </div>
             )}
+
+            {/* แสดงข้อความเตือนเมื่อไม่มีกล้องหลัง */}
+            {showCameraWarning && (
+                <div className="camera-warning-overlay">
+                    <div className="camera-warning">
+                        <p>📱 อุปกรณ์นี้มีแค่กล้องหน้า</p>
+                        <p>ไม่สามารถสลับไปกล้องหลังได้</p>
+                    </div>
+                </div>
+            )}
+
             <div className={`camera-controls ${(preview || isRecording || isProcessing) ? 'hidden' : ''}`}>
-                <button className="action-button side-button-left" onClick={handleSwitchCamera} aria-label="Switch Camera" disabled={isRecording || isProcessing}>
-                    <img src={iconSwitchCamera} alt="Switch Camera" className={`action-icon ${cameraFacingMode !== 'user' ? 'flipping' : ''}`} />
-                </button>
-                {mode === 'photo' ? (
-                    <div className="photo-button" onClick={handleTakePhoto} aria-label="Take Photo">
-                        <div className="circle"></div>
-                    </div>
-                ) : (
-                    <div className={`record-button ${isRecording ? 'recording' : ''}`} onClick={handleToggleRecording} aria-label="Toggle Recording">
-                        <div className="ring" key={String(isRecording)}>
-                            <svg viewBox="0 0 32 32">
-                                <circle className="progress-ring" r="15" cx="16" cy="16" fill="transparent" transform="rotate(-90 16 16)" stroke="#FFFFFF" />
-                            </svg>
+                <div className="camera-bar-col left">
+                    <button className="action-button side-button-left" onClick={handleSwitchCamera} aria-label="Switch Camera" disabled={isRecording || isProcessing}>
+                        <img src={iconSwitchCamera} alt="Switch Camera" className={`action-icon ${cameraFacingMode !== 'user' ? 'flipping' : ''}`} />
+                    </button>
+                </div>
+                <div className="camera-bar-col center">
+                    {mode === 'photo' ? (
+                        <div className="photo-button" onClick={handleTakePhoto} aria-label="Take Photo">
+                            <div className="circle"></div>
                         </div>
-                        <div className="inner-shape"></div>
+                    ) : (
+                        <div className={`record-button ${isRecording ? 'recording' : ''}`} onClick={handleToggleRecording} aria-label="Toggle Recording">
+                            <div className="ring" key={String(isRecording)}>
+                                <svg viewBox="0 0 64 64">
+                                    <circle className="progress-ring" r="28" cx="32" cy="32" fill="transparent" transform="rotate(-90 32 32)" stroke="#FFFFFF" />
+                                </svg>
+                            </div>
+                            <div className="inner-shape"></div>
+                        </div>
+                    )}
+                </div>
+                <div className="camera-bar-col right">
+                    <div className="mode-toggle-group">
+                        <button
+                            className={`mode-toggle-btn${mode === 'photo' ? ' active' : ''}`}
+                            onClick={() => setMode('photo')}
+                            disabled={isRecording || isProcessing}
+                            aria-label="โหมดถ่ายภาพ"
+                            type="button"
+                        >
+                            <CameraIcon />
+                        </button>
+                        <div className="mode-toggle-divider" />
+                        <button
+                            className={`mode-toggle-btn${mode === 'video' ? ' active' : ''}`}
+                            onClick={() => setMode('video')}
+                            disabled={isRecording || isProcessing}
+                            aria-label="โหมดวิดีโอ"
+                            type="button"
+                        >
+                            <VideoIcon />
+                        </button>
                     </div>
-                )}
-                <div className="switch-button">
-                    <label>
-                        <span className="camera"><CameraIcon /></span>
-                        <span className="video"><VideoIcon /></span>
-                        <input type="checkbox" className="input" onChange={handleModeChange} checked={mode === 'video'} disabled={isRecording || isProcessing} />
-                        <span className="slider"></span>
-                    </label>
                 </div>
             </div>
             {preview && (

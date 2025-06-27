@@ -2,7 +2,6 @@
 import React, { useState, Suspense, useCallback, useEffect } from 'react';
 import './App.css';
 import LoadingScreen from './components/LoadingScreen/LoadingScreen';
-import PermissionPrompt from './components/PermissionPrompt/PermissionPrompt';
 import { FLAVORS } from './data/flavors';
 import adaptiveFaceService from './services/adaptiveFaceService';
 import { preloadGLTF } from './utils/preloadGLTF';
@@ -137,14 +136,18 @@ function App() {
   useEffect(() => {
     async function requestPermissionAndPreload() {
       try {
-        console.log("📷 Requesting camera permission...");
+        console.log("📷 Requesting camera and microphone permission...");
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: 'user',
             width: { ideal: 1280 },
             height: { ideal: 720 }
           },
-          audio: false
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
         });
         stream.getTracks().forEach(track => track.stop());
         setAppState('loading');
@@ -152,11 +155,11 @@ function App() {
       } catch (err) {
         console.error("❌ Permission denied:", err);
         if (err.name === 'NotAllowedError') {
-          setError("จำเป็นต้องอนุญาตให้เข้าถึงกล้องเพื่อใช้งาน กรุณาอนุญาตและรีเฟรชหน้าเว็บ");
+          setError("จำเป็นต้องอนุญาตให้เข้าถึงกล้องและไมค์เพื่อใช้งาน กรุณาอนุญาตและรีเฟรชหน้าเว็บ");
         } else if (err.name === 'NotFoundError') {
           setError("ไม่พบกล้องในอุปกรณ์ กรุณาตรวจสอบการเชื่อมต่อกล้อง");
         } else {
-          setError("เกิดข้อผิดพลาดในการเข้าถึงกล้อง กรุณาลองใหม่อีกครั้ง");
+          setError("เกิดข้อผิดพลาดในการเข้าถึงกล้องและไมค์ กรุณาลองใหม่อีกครั้ง");
         }
       }
     }

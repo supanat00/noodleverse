@@ -73,6 +73,7 @@
   font-weight: bold;
   margin: 0;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  margin-top: max(env(safe-area-inset-top, 0px), 20px);
 }
 
 /* จุดแสดงสถานะโหลด (ดอท) */
