@@ -73,25 +73,29 @@
   font-weight: bold;
   margin: 0;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
-  margin-top: max(env(safe-area-inset-top, 0px), 20px);
+  margin-top: 16px;
 }
 
 /* จุดแสดงสถานะโหลด (ดอท) */
 .loading-dots {
   display: flex;
-  align-items: center;
-  margin-top: -30px;
-  margin-bottom: 15px;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 18px;
+  margin-top: -10px;
+  margin-bottom: 0;
+  min-height: 16px;
 }
 
 .loading-dots span {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 4rem;
-  font-weight: bold;
-  line-height: 1;
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  background: white;
+  border-radius: 50%;
+  margin: 0 2px 0 2px;
   animation: blink 1.4s infinite;
+  /* ลบ font-size, font-weight, line-height */
 }
 
 /* ตั้ง delay ให้แต่ละจุดกระพริบไม่พร้อมกัน */

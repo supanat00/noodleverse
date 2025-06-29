@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import './CameraUI.css';
 
 import PreviewModal from '../PreviewModal/PreviewModal';
@@ -9,40 +9,23 @@ import iconSwitchCamera from '/assets/icons/switch-camera.webp';
 const CameraIcon = () => <svg width="24px" height="24px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="#000000" strokeWidth="1.5" /><path d="M8.5 4.5h7c3.06 0 4.58 0 5.5.87a3.83 3.83 0 011.22 1.29c.88 1 .88 2.5.88 5.56s0 4.59-.88 5.69a3.83 3.83 0 01-1.22 1.3c-.92.87-2.44.87-5.5.87h-7c-3.06 0-4.58 0-5.5-.87a3.83 3.83 0 01-1.22-1.3C2 17.56 2 16.03 2 13s0-4.59.88-5.69A3.83 3.83 0 014 6.01C4.92 5.14 6.44 5.14 9.5 5.14h0" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" /><path d="M18 10h-1" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" /></svg>;
 const VideoIcon = () => <svg width="24px" height="24px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 10l2.58-1.55a2 2 0 013.42 1.55v4a2 2 0 01-3.42 1.55L16 14M6.2 18h6.6c1.12 0 1.68 0 2.1-.22a2 2 0 001.1-1.1c.22-.42.22-1 .22-2.1V9.2c0-1.12 0-1.68-.22-2.1a2 2 0 00-1.1-1.1c-.42-.22-1-.22-2.1-.22H6.2c-1.12 0-1.68 0-2.1.22a2 2 0 00-1.1 1.1c-.22.42-.22 1-.22 2.1v3.6c0 1.12 0 1.68.22 2.1a2 2 0 001.1 1.1c.42.22 1 .22 2.1.22z" stroke="#000000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 
+
 const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
+
     const [mode, setMode] = useState('photo');
     const [isRecording, setIsRecording] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [preview, setPreview] = useState(null);
-    const [hasBackCamera, setHasBackCamera] = useState(true);
-    const [showCameraWarning, setShowCameraWarning] = useState(false);
 
+    // ✨ --- Refs ที่เปลี่ยนไปสำหรับ MediaRecorder --- ✨
     const animationFrameIdRef = useRef(null);
     const mediaRecorderRef = useRef(null);
     const recordedChunksRef = useRef([]);
-    const audioTrackRef = useRef(null);
+    const audioTrackRef = useRef(null); // Ref สำหรับเก็บ Audio Track เพื่อใช้ในการ stop
     const recordTimerRef = useRef(null);
 
-    // ตรวจสอบว่า Browser รองรับการอัดวิดีโอหรือไม่
-    const isVideoRecordingSupported = 'MediaRecorder' in window && typeof MediaRecorder.isTypeSupported === 'function';
-
-    // ตรวจสอบว่า device มีกล้องหลังหรือไม่
-    useEffect(() => {
-        const checkBackCamera = async () => {
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoDevices = devices.filter(device => device.kind === 'videoinput');
-                const hasBackCamera = videoDevices.length > 1;
-                setHasBackCamera(hasBackCamera);
-                console.log(`📱 Device has back camera: ${hasBackCamera} (${videoDevices.length} cameras)`);
-            } catch (error) {
-                console.warn("Cannot enumerate devices:", error);
-                setHasBackCamera(true); // ตั้งค่าเป็น true เผื่อกรณี
-            }
-        };
-
-        checkBackCamera();
-    }, []);
+    // --- ตรวจสอบว่า Browser รองรับการอัดวิดีโอหรือไม่ ---
+    const isVideoRecordingSupported = useMemo(() => 'MediaRecorder' in window && typeof MediaRecorder.isTypeSupported === 'function', []);
 
     const handleTakePhoto = useCallback(() => {
         console.log("ACTION: Take Photo (Fit Height, Center Horizontally)");
@@ -98,12 +81,16 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
         });
     }, [arSystemRef]);
 
-    // --- ฟังก์ชัน startRecording ---
+    // ✨ --- ฟังก์ชัน startRecording ที่เขียนขึ้นใหม่ทั้งหมด --- ✨
+
     const startRecording = useCallback(async () => {
+        console.log("ACTION: Start Recording with MediaRecorder");
+
         if (!isVideoRecordingSupported) {
             alert("ขออภัย อุปกรณ์ของคุณไม่รองรับการอัดวิดีโอ");
             return false;
         }
+
         try {
             const arCanvas = arSystemRef.current?.arCanvas;
             const cameraCanvas = arSystemRef.current?.cameraCanvas;
@@ -111,13 +98,19 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
                 alert("เกิดข้อผิดพลาด: ไม่สามารถเริ่มอัดวิดีโอได้");
                 return false;
             }
+
+            // 1. สร้าง Canvas สำหรับอัดวิดีโอ (เหมือนเดิม)
             const videoWidth = 720;
             const videoHeight = 1280;
             const recordingCanvas = document.createElement('canvas');
             recordingCanvas.width = videoWidth;
             recordingCanvas.height = videoHeight;
             const ctx = recordingCanvas.getContext('2d');
-            const videoStream = recordingCanvas.captureStream(30);
+
+            // 2. ขอ Stream จาก Canvas และขอ Stream เสียงจากผู้ใช้
+            const videoStream = recordingCanvas.captureStream(30); // 30 FPS
+
+            // Enhanced audio stream handling with iOS compatibility
             let audioStream = null;
             let audioTrack = null;
             try {
@@ -132,34 +125,55 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
                 audioTrackRef.current = audioTrack;
             } catch (audioError) {
                 console.warn("Audio permission denied or not available, recording without audio:", audioError);
+                // Continue without audio - this is common on iOS
             }
+
+            // 3. รวม Video Track และ Audio Track เข้าด้วยกัน
             const streamTracks = [...videoStream.getVideoTracks()];
-            if (audioTrack) streamTracks.push(audioTrack);
+            if (audioTrack) {
+                streamTracks.push(audioTrack);
+            }
             const combinedStream = new MediaStream(streamTracks);
+
+            // 4. Enhanced MIME type detection for better cross-browser compatibility
             const mimeTypes = [
-                'video/mp4',
+                'video/mp4', // Prioritize MP4 for iOS compatibility
                 'video/webm;codecs=vp9,opus',
                 'video/webm;codecs=vp8,opus',
                 'video/webm',
                 'video/ogg;codecs=theora,vorbis'
             ];
+
             let selectedMimeType = null;
             for (const mimeType of mimeTypes) {
                 if (MediaRecorder.isTypeSupported(mimeType)) {
                     selectedMimeType = mimeType;
+                    console.log(`Using MIME type: ${mimeType}`);
                     break;
                 }
             }
+
+            if (!selectedMimeType) {
+                console.warn("No supported MIME type found, using browser default");
+            }
+
             const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
+
+            // 5. สร้าง Instance ของ MediaRecorder
             mediaRecorderRef.current = new MediaRecorder(combinedStream, options);
             recordedChunksRef.current = [];
+
+            // 6. Enhanced Event Listeners with better error handling
             mediaRecorderRef.current.ondataavailable = (event) => {
                 if (event.data && event.data.size > 0) {
                     recordedChunksRef.current.push(event.data);
                 }
             };
-            mediaRecorderRef.current.onerror = () => {
+
+            mediaRecorderRef.current.onerror = (event) => {
+                console.error("MediaRecorder error:", event.error);
                 alert("เกิดข้อผิดพลาดในการอัดวิดีโอ กรุณาลองใหม่อีกครั้ง");
+                // Cleanup on error
                 if (audioTrackRef.current) {
                     audioTrackRef.current.stop();
                     audioTrackRef.current = null;
@@ -167,22 +181,28 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
                 setIsRecording(false);
                 setIsProcessing(false);
             };
-            // --- onstop: แสดงข้อความประมวลผล, ปิดปุ่ม, แสดง preview ---
+
             mediaRecorderRef.current.onstop = () => {
-                console.log("MediaRecorder onstop called");
+                console.log("Processing video file...");
                 setIsProcessing(true);
+
                 try {
                     const mimeType = mediaRecorderRef.current?.mimeType || selectedMimeType || 'video/mp4';
                     const videoBlob = new Blob(recordedChunksRef.current, { type: mimeType });
-                    console.log('videoBlob size:', videoBlob.size);
+
                     if (videoBlob.size === 0) {
-                        alert("Recorded video is empty");
-                        return;
+                        throw new Error("Recorded video is empty");
                     }
+
                     const videoUrl = URL.createObjectURL(videoBlob);
                     setPreview({ type: 'video', src: videoUrl, mimeType: mimeType });
-                    console.log('setPreview called', { type: 'video', src: videoUrl, mimeType: mimeType });
-                } catch { /* ignore */ } finally {
+
+                    console.log(`Video recorded successfully: ${(videoBlob.size / 1024 / 1024).toFixed(2)}MB`);
+                } catch (processingError) {
+                    console.error("Error processing video:", processingError);
+                    alert("เกิดข้อผิดพลาดในการประมวลผลวิดีโอ กรุณาลองใหม่อีกครั้ง");
+                } finally {
+                    // Cleanup
                     recordedChunksRef.current = [];
                     mediaRecorderRef.current = null;
                     if (audioTrackRef.current) {
@@ -192,10 +212,19 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
                     setIsProcessing(false);
                 }
             };
+
+            // 7. เริ่มการอัด
             mediaRecorderRef.current.start();
+            console.log("Recording started with state:", mediaRecorderRef.current.state);
+
+            // 8. เริ่ม Loop การวาดภาพลง Canvas (เหมือนเดิม)
             const processFrame = () => {
-                if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') return;
+                if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') {
+                    return;
+                }
+
                 try {
+                    // วาดภาพ BG จากกล้อง
                     const cameraAspectRatio = cameraCanvas.width / cameraCanvas.height;
                     let bgWidth = videoWidth;
                     let bgHeight = bgWidth / cameraAspectRatio;
@@ -206,35 +235,63 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
                     const bgX = (videoWidth - bgWidth) / 2;
                     const bgY = (videoHeight - bgHeight) / 2;
                     ctx.save();
-                    if (cameraFacingMode === 'user') {
+                    if (cameraFacingMode === 'user') { // พลิกภาพเฉพาะกล้องหน้า
                         ctx.translate(videoWidth, 0);
                         ctx.scale(-1, 1);
                     }
                     ctx.drawImage(cameraCanvas, bgX, bgY, bgWidth, bgHeight);
                     ctx.restore();
+
+                    // วาด AR Scene
                     const arAspectRatio = arCanvas.width / arCanvas.height;
                     const drawHeight = videoHeight;
                     const drawWidth = drawHeight * arAspectRatio;
                     const drawX = (videoWidth - drawWidth) / 2;
                     ctx.drawImage(arCanvas, drawX, 0, drawWidth, drawHeight);
-                } catch { /* ignore */ }
+                } catch (frameError) {
+                    console.error("Error processing frame:", frameError);
+                }
+
                 animationFrameIdRef.current = requestAnimationFrame(processFrame);
             };
             requestAnimationFrame(processFrame);
             return true;
-        } catch { /* ignore */ }
+
+        } catch (err) {
+            console.error("Failed to start recording:", err);
+
+            // More specific error messages
+            let errorMessage = "ไม่สามารถเริ่มอัดวิดีโอได้";
+            if (err.name === 'NotAllowedError') {
+                errorMessage = "กรุณาอนุญาตให้เข้าถึงไมโครโฟนเพื่ออัดวิดีโอ";
+            } else if (err.name === 'NotSupportedError') {
+                errorMessage = "เบราว์เซอร์ของคุณไม่รองรับการอัดวิดีโอ";
+            } else if (err.name === 'NotFoundError') {
+                errorMessage = "ไม่พบไมโครโฟนในอุปกรณ์";
+            }
+
+            alert(`${errorMessage}: ${err.message}`);
+
+            // Cleanup เผื่อกรณีเกิด error ระหว่างทาง
+            if (audioTrackRef.current) {
+                audioTrackRef.current.stop();
+                audioTrackRef.current = null;
+            }
+            return false;
+        }
     }, [arSystemRef, cameraFacingMode, isVideoRecordingSupported]);
 
-    // --- stopRecording ---
+    // ✨ --- ฟังก์ชัน stopRecording ที่ง่ายขึ้น --- ✨
     const stopRecording = useCallback(() => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-            mediaRecorderRef.current.stop();
+            console.log("ACTION: Stop Recording...");
+            mediaRecorderRef.current.stop(); // การประมวลผลจะเกิดขึ้นใน onstop event
         }
         clearTimeout(recordTimerRef.current);
         cancelAnimationFrame(animationFrameIdRef.current);
     }, []);
 
-    // --- handleToggleRecording ---
+    // ✨ --- ฟังก์ชัน Toggle ที่ปรับปรุงเล็กน้อย --- ✨
     const handleToggleRecording = useCallback(() => {
         if (isRecording) {
             stopRecording();
@@ -243,6 +300,7 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
             startRecording().then(success => {
                 if (success) {
                     setIsRecording(true);
+                    // ตั้งเวลาหยุดอัดอัตโนมัติที่ 30 วินาที
                     recordTimerRef.current = setTimeout(() => {
                         stopRecording();
                         setIsRecording(false);
@@ -253,24 +311,16 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
     }, [isRecording, startRecording, stopRecording]);
 
     // --- Utility Functions ---
-    const handleSwitchCamera = useCallback(async () => {
-        if (isRecording || isProcessing) return;
 
-        if (!hasBackCamera) {
-            setShowCameraWarning(true);
-            setTimeout(() => setShowCameraWarning(false), 3000);
-            return;
-        }
-
-        // ถ้ามีกล้องหลังเท่านั้นจึงจะสลับ
-        const newMode = cameraFacingMode === 'user' ? 'environment' : 'user';
-        onSwitchCamera(newMode);
-    }, [cameraFacingMode, onSwitchCamera, hasBackCamera, isRecording, isProcessing]);
+    const handleSwitchCamera = useCallback(() => onSwitchCamera(cameraFacingMode === 'user' ? 'environment' : 'user'), [cameraFacingMode, onSwitchCamera]);
+    // --- Preview Action Handlers ---
     const handleRetry = useCallback(() => setPreview(null), []);
+
     const handleDownload = useCallback(() => {
         if (!preview?.src) return;
         const a = document.createElement('a');
         a.href = preview.src;
+        // ใช้ mimeType ที่ได้มาในการตั้งชื่อไฟล์
         const extension = (preview.mimeType?.includes('mp4')) ? 'mp4' : 'webm';
         a.download = preview.type === 'video' ? `mama-noodleverse.${extension}` : 'mama-noodleverse.png';
         a.target = '_blank';
@@ -278,7 +328,11 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        // ปิด modal ทันทีหลังดาวน์โหลดทั้งภาพและวิดีโอ
+        setPreview(null);
     }, [preview]);
+
+    // --- แชร์: fallback กลับไปใช้วิธีเดิม ---
     const handleShare = useCallback(async () => {
         if (!preview?.src) return;
         try {
@@ -286,6 +340,7 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
             const blob = await response.blob();
             const fileType = preview.type === 'video' ? 'video/mp4' : 'image/png';
             const file = new File([blob], `mama-noodleverse.${fileType.split('/')[1]}`, { type: fileType });
+
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                 await navigator.share({
                     files: [file],
@@ -297,10 +352,13 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
             }
         } catch (error) {
             if (error.name !== 'AbortError') {
+                console.error("Share error:", error);
                 alert(`การแชร์ล้มเหลว: ${error.message}`);
             }
         }
     }, [preview]);
+
+    // --- Cleanup Effect ---
     useEffect(() => {
         const currentPreviewSrc = preview?.src;
         const isVideo = preview?.type === 'video';
@@ -310,6 +368,7 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
             }
         };
     }, [preview]);
+
     useEffect(() => {
         return () => {
             cancelAnimationFrame(animationFrameIdRef.current);
@@ -322,7 +381,7 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
         };
     }, []);
 
-    // --- UI ---
+
     return (
         <div className="ui-overlay">
             {/* แสดง overlay ขณะประมวลผล */}
@@ -330,16 +389,6 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
                 <div className="processing-overlay">
                     <div className="spinner"></div>
                     <p>กำลังประมวลผล...</p>
-                </div>
-            )}
-
-            {/* แสดงข้อความเตือนเมื่อไม่มีกล้องหลัง */}
-            {showCameraWarning && (
-                <div className="camera-warning-overlay">
-                    <div className="camera-warning">
-                        <p>📱 อุปกรณ์นี้มีแค่กล้องหน้า</p>
-                        <p>ไม่สามารถสลับไปกล้องหลังได้</p>
-                    </div>
                 </div>
             )}
 

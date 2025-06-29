@@ -43,6 +43,23 @@ export const FLAVORS = [
         scale: 1.2,
       },
     },
+    fallbackAdjustments: {
+      bowl: {
+        position: [0, -1, 0],
+        rotation: [(180 * Math.PI) / 180, 0, 0],
+        scale: 1.35,
+      },
+      prop: {
+        position: [0, -1, 0],
+        rotation: [(180 * Math.PI) / 180, 0, 0],
+        scale: 1.35,
+      },
+      chopstick: {
+        position: [0, -3.75, 3.5],
+        rotation: [0, 0, 0],
+        scale: 1.2,
+      },
+    },
   },
   {
     id: "kimchi",
@@ -72,6 +89,23 @@ export const FLAVORS = [
         scale: 1,
       },
     },
+    fallbackAdjustments: {
+      bowl: {
+        position: [0, -1, 0],
+        rotation: [(180 * Math.PI) / 180, 0, 0],
+        scale: 1.35,
+      },
+      prop: {
+        position: [0, -1, 0],
+        rotation: [(180 * Math.PI) / 180, 0, 0],
+        scale: 1.35,
+      },
+      chopstick: {
+        position: [0.5, -3, 2],
+        rotation: [0, 0, 0],
+        scale: 1,
+      },
+    },
   },
   {
     id: "tonkotsu",
@@ -97,6 +131,23 @@ export const FLAVORS = [
       },
       chopstick: {
         position: [-0.75, -3.15, 1.5], // ตำแหน่งคงที่บนหน้าจอ
+        rotation: [0, 0, 0],
+        scale: 0.85,
+      },
+    },
+    fallbackAdjustments: {
+      bowl: {
+        position: [0, -1, 0],
+        rotation: [(180 * Math.PI) / 180, 0, 0],
+        scale: 1.35,
+      },
+      prop: {
+        position: [0, -1, 0],
+        rotation: [(180 * Math.PI) / 180, 0, 0],
+        scale: 1.35,
+      },
+      chopstick: {
+        position: [-0.75, -3.15, 1.5],
         rotation: [0, 0, 0],
         scale: 0.85,
       },

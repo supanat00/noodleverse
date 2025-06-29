@@ -16,7 +16,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  width: 100vw;
+  width: 100%;
   height: auto;
   padding: 0 0 max(env(safe-area-inset-bottom, 0), 80px) 0;
   box-sizing: border-box;
@@ -275,6 +275,13 @@
 .mode-toggle-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+.mode-toggle-btn:focus,
+.mode-toggle-btn:focus-visible,
+.mode-toggle-btn:active {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 /* --- ✨ Style ใหม่สำหรับ Processing Overlay ✨ --- */

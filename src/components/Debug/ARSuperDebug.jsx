@@ -4,7 +4,6 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Preload, useVideoTexture, useTexture } from '@react-three/drei';
 import mediaPipeService from "../../services/mediaPipeService";
 import { Camera } from "@mediapipe/camera_utils";
-import adaptiveFaceService from "../../services/adaptiveFaceService";
 
 import './ARSuperDebug.css';
 
@@ -46,6 +45,7 @@ function useRobustGLTF(url) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
+        let isMounted = true;
         setIsLoading(true);
         setError(null);
 
@@ -59,16 +59,24 @@ function useRobustGLTF(url) {
                     )
                 ]);
 
-                setGltf(result);
-                setIsLoading(false);
+                if (isMounted) {
+                    setGltf(result);
+                    setIsLoading(false);
+                }
             } catch (err) {
                 console.error(`Failed to load model: ${url}`, err);
-                setError(err);
-                setIsLoading(false);
+                if (isMounted) {
+                    setError(err);
+                    setIsLoading(false);
+                }
             }
         };
 
         loadModel();
+
+        return () => {
+            isMounted = false;
+        };
     }, [url]);
 
     return { gltf, error, isLoading };
@@ -81,6 +89,7 @@ function useRobustTexture(url) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
+        let isMounted = true;
         setIsLoading(true);
         setError(null);
 
@@ -104,54 +113,40 @@ function useRobustTexture(url) {
                     );
                 });
 
-                setTexture(result);
-                setIsLoading(false);
+                if (isMounted) {
+                    setTexture(result);
+                    setIsLoading(false);
+                }
             } catch (err) {
                 console.error(`Failed to load texture: ${url}`, err);
-                setError(err);
-                setIsLoading(false);
+                if (isMounted) {
+                    setError(err);
+                    setIsLoading(false);
+                }
             }
         };
 
         loadTexture();
+
+        return () => {
+            isMounted = false;
+        };
     }, [url]);
 
     return { texture, error, isLoading };
 }
 
-// HeadsUpDisplay component with large presenter video and consistent margin/size
+// HeadsUpDisplay component with improved error handling
 function HeadsUpDisplay({ selectedFlavor, isVisible }) {
-    const { viewport } = useThree();
+    const { viewport, size } = useThree();
 
-    // presenter video ขยายขึ้นอีกนิด (75% ของจอ)
-    const maxWidth = viewport.width * 0.75;   // 75% ของจอ
-    const maxHeight = viewport.height * 0.28; // 28% ของจอ (margin บน)
-
-    let containerWidth = maxWidth;
-    let containerHeight = containerWidth * 9 / 16;
-    if (containerHeight > maxHeight) {
-        containerHeight = maxHeight;
-        containerWidth = containerHeight * 16 / 9;
-    }
-
-    const topMargin = 0.08;
-    const containerX = 0;
-    const containerY = (viewport.height / 2) - (containerHeight / 2) - topMargin;
-
-    // Logo
     const logoUrl = '/assets/images/mama-logo.webp';
-    const logoTexture = useTexture(logoUrl);
-    // คำนวณอัตราส่วนโลโก้จริง
-    const logoAspectRatio = (logoTexture?.image?.naturalWidth && logoTexture?.image?.naturalHeight)
-        ? logoTexture.image.naturalWidth / logoTexture.image.naturalHeight
-        : 1.8; // fallback เผื่อโหลดไม่ทัน
-    const logoWidth = containerWidth * 0.13;
-    const logoHeight = logoWidth / logoAspectRatio;
-    const logoMargin = containerWidth * 0.04;
-    const logoX = -containerWidth / 2 + logoMargin + (logoWidth / 2);
-    const logoY = containerHeight / 2 - logoMargin - (logoHeight / 2);
-
     const videoUrl = selectedFlavor?.videoPublicId || '';
+
+    // ใช้ useTexture ปกติสำหรับ logo เพื่อให้แสดงผลได้
+    const logoTexture = useTexture(logoUrl);
+
+    // Improved video texture handling
     const videoTexture = useVideoTexture(videoUrl, {
         muted: true,
         loop: true,
@@ -169,7 +164,30 @@ function HeadsUpDisplay({ selectedFlavor, isVisible }) {
         }
     }, [isVisible, videoTexture.image]);
 
+    // Move all calculations before the early return
+    const remToPx = 16;
+    const topMarginInRem = 2;
+    const containerMaxWidthInPx = 375;
+    const containerWidthPercent = 1;
+    const logoWidthInPx = 60;
+    const logoMarginInPx = 15;
+    const pxToWorldRatio = viewport.width / size.width;
+    const responsiveWidth = viewport.width * containerWidthPercent;
+    const maxWidthInWorld = containerMaxWidthInPx * pxToWorldRatio;
+    const containerWidth = Math.min(responsiveWidth, maxWidthInWorld);
+    const videoAspectRatio = (videoTexture.image?.videoWidth / videoTexture.image?.videoHeight) || (16 / 9);
+    const containerHeight = containerWidth / videoAspectRatio;
+    const containerX = 0;
+    const topMarginInWorld = (topMarginInRem * remToPx) * pxToWorldRatio;
+    const containerY = (viewport.height / 2) - topMarginInWorld - (containerHeight / 2);
     const cornerRadius = 0.05;
+    const logoWidth = logoWidthInPx * pxToWorldRatio;
+    const logoAspectRatio = (logoTexture?.image?.naturalWidth / logoTexture?.image?.naturalHeight) || 1;
+    const logoHeight = logoWidth / logoAspectRatio;
+    const logoMargin = logoMarginInPx * pxToWorldRatio;
+    const logoX = -containerWidth / 2 + logoMargin + (logoWidth / 2);
+    const logoY = containerHeight / 2 - logoMargin - (logoHeight / 2);
+
     const roundedVideoMaterial = useMemo(() => new THREE.ShaderMaterial({
         uniforms: { uMap: { value: videoTexture }, uRadius: { value: cornerRadius }, uAspect: { value: containerWidth / containerHeight } },
         vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
@@ -226,40 +244,58 @@ function TextureInjector({ url, model, onTextureApplied }) {
 // ====================================================================
 // FaceAnchor Component (Production-Ready with Error Handling)
 // ====================================================================
-function FaceAnchor({ landmarksRef, flavor, isVisible }) {
+function FaceAnchor({ landmarksRef, flavor, isVisible, isTrackingEnabled }) {
     const groupRef = useRef();
     const chopstickGroupRef = useRef();
     const { camera } = useThree();
+
     const hasBeenPlaced = useRef(false);
 
+    // [ใหม่] State และ Ref สำหรับระบบตรวจจับการสั่น (Jitter Detection)
+    const [isTrackingStable, setIsTrackingStable] = useState(true);
+    const lastLandmarkPos = useRef(null);
+    const jitterCounter = useRef(0);
+
+    // [ใหม่] เมื่อ isVisible เปลี่ยนเป็น false (ผู้ใช้เลือกรสอื่น)
+    // เราต้องรีเซ็ตสถานะ `hasBeenPlaced` ด้วย
     useEffect(() => {
         if (!isVisible) {
             hasBeenPlaced.current = false;
         }
     }, [isVisible]);
 
+    // --- ส่วนของการโหลดโมเดลและ setup อื่นๆ เหมือนเดิมทั้งหมด ---
     const bowlAdjust = flavor.adjustments?.bowl
     const propAdjust = flavor.adjustments?.prop
     const chopstickAdjust = flavor.adjustments?.chopstick
 
+    // [ใหม่] ดึงค่า fallback adjustments ออกมา
+    const fallbackAdjust = flavor.fallbackAdjustments;
+
+    // Use robust GLTF loading for all models
     const { gltf: bowlGltf, error: bowlError } = useRobustGLTF(flavor.models.bowl);
     const { gltf: propGltf, error: propError } = useRobustGLTF(flavor.models.prop);
     const { gltf: chopstickGltf, error: chopstickError } = useRobustGLTF(flavor.models.chopstick);
 
+    // Create model clones only when GLTF is loaded successfully
     const bowlModel = useMemo(() => bowlGltf?.scene?.clone(), [bowlGltf]);
     const propModel = useMemo(() => propGltf?.scene?.clone(), [propGltf]);
     const chopstickModel = useMemo(() => chopstickGltf?.scene?.clone(), [chopstickGltf]);
 
     const customTextureUrl = bowlAdjust.customTexture;
     const [isReadyToRender, setIsReadyToRender] = useState(!customTextureUrl);
+
+    // ใช้ callback ที่ memoized เพื่อป้องกันการ re-render ของ TextureInjector
     const handleTextureApplied = useCallback(() => {
         setIsReadyToRender(true);
     }, []);
 
+    // Only create mixers and actions if models are loaded
     const propMixer = useMemo(() =>
         propModel ? new THREE.AnimationMixer(propModel) : null,
         [propModel]
     );
+
     const propActions = useMemo(() => {
         if (propGltf?.animations?.length > 0 && propMixer) {
             const action = propMixer.clipAction(propGltf.animations[0]);
@@ -269,10 +305,13 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
         }
         return { main: null };
     }, [propGltf?.animations, propMixer]);
+
     const chopstickMixer = useMemo(() =>
         chopstickModel ? new THREE.AnimationMixer(chopstickModel) : null,
         [chopstickModel]
     );
+
+    // เพิ่ม chopstick animation ที่เล่นตลอดเวลา
     useEffect(() => {
         if (chopstickGltf?.animations?.length > 0 && chopstickMixer) {
             const action = chopstickMixer.clipAction(chopstickGltf.animations[0]);
@@ -280,117 +319,213 @@ function FaceAnchor({ landmarksRef, flavor, isVisible }) {
             action.paused = false; // เล่นตลอดเวลา
         }
     }, [chopstickGltf?.animations, chopstickMixer]);
-    const lastMouthState = useRef("Close");
+
     useEffect(() => {
         if (propModel) propModel.visible = false;
     }, [propModel]);
 
-    const getPoint = (arr, idx) => {
-        const pt = arr?.[idx];
-        if (!pt) return null;
-        if (Array.isArray(pt)) return { x: pt[0], y: pt[1], z: pt[2] ?? 0 };
-        return { x: pt.x, y: pt.y, z: pt.z ?? 0 };
-    };
-
+    // All hooks must be called before any conditional returns
     useFrame((state, delta) => {
         const group = groupRef.current;
         const chopstickGroup = chopstickGroupRef.current;
-        const landmarks = landmarksRef.current;
-        if (bowlError || propError || chopstickError) return;
-        if (!bowlModel || !propModel || !chopstickModel) return;
-        if (!group || !chopstickGroup || !isVisible) return;
+        let landmarks = isTrackingEnabled ? landmarksRef.current : null;
 
-        // --- ตะเกียบแสดงผลตลอดเวลา ---
-        chopstickGroup.visible = true;
+        // --- [ใหม่] Jitter Detection Logic ---
+        if (landmarks) {
+            const JITTER_THRESHOLD = 0.05; // ค่าความเปลี่ยนแปลงสูงสุดที่ยอมรับได้
+            const MAX_JITTER_COUNT = 10;   // จำนวนเฟรมที่สั่นติดต่อกันก่อนจะปิด tracking
+            const currentPos = landmarks[152]; // ใช้ปลายคางเป็นจุดอ้างอิง
 
-        // ถ้าหาใบหน้าไม่เจอ
-        if (!landmarks) {
-            group.visible = false;
-            // chopstickGroup.visible = true; // ตะเกียบแสดงผลตลอด
-            hasBeenPlaced.current = false;
+            if (lastLandmarkPos.current && currentPos) {
+                const distance = new THREE.Vector2(currentPos.x, currentPos.y).distanceTo(lastLandmarkPos.current);
+                if (distance > JITTER_THRESHOLD) {
+                    jitterCounter.current++;
+                } else {
+                    jitterCounter.current = 0; // รีเซ็ตถ้ากลับมานิ่ง
+                }
+            }
+
+            if (currentPos) {
+                lastLandmarkPos.current = new THREE.Vector2(currentPos.x, currentPos.y);
+            }
+
+            if (jitterCounter.current > MAX_JITTER_COUNT) {
+                if (isTrackingStable) {
+                    console.warn("Jitter detected! Tracking is unstable. Forcing fallback mode.");
+                    setIsTrackingStable(false);
+                }
+            }
+        } else {
+            // ถ้ารไม่เจอหน้าเลย ก็ถือว่า tracking "เสถียร" (รอเจอหน้าใหม่)
+            if (!isTrackingStable) setIsTrackingStable(true);
+            jitterCounter.current = 0;
+            lastLandmarkPos.current = null;
+        }
+
+        // ถ้า tracking ไม่เสถียร ให้บังคับใช้ fallback mode
+        if (!isTrackingStable) {
+            landmarks = null;
+        }
+        // ------------------------------------
+
+        // Don't render if any critical model failed to load
+        if (bowlError || propError || chopstickError) {
             return;
         }
 
-        // --- คำนวณตำแหน่งและทิศทางการหมุน (เหมือนเดิม) ---
-        const anchorPoint = getPoint(landmarks, 152);
-        if (!anchorPoint) return;
-        const target = new THREE.Vector3();
-        const screenX = (-anchorPoint.x + 0.5) * 2;
-        const screenY = -(anchorPoint.y - 0.5) * 2;
-        state.raycaster.setFromCamera({ x: screenX, y: screenY }, camera);
-        state.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), target);
+        // Don't render if models aren't ready
+        if (!bowlModel || !propModel || !chopstickModel) {
+            return;
+        }
 
-        const forehead = getPoint(landmarks, 10);
-        const chin = getPoint(landmarks, 152);
-        const leftCheek = getPoint(landmarks, 234);
-        const rightCheek = getPoint(landmarks, 454);
-        if (!forehead || !chin || !leftCheek || !rightCheek) return;
-        const foreheadVec = new THREE.Vector3(forehead.x, forehead.y, forehead.z);
-        const chinVec = new THREE.Vector3(chin.x, chin.y, chin.z);
-        const leftCheekVec = new THREE.Vector3(leftCheek.x, leftCheek.y, leftCheek.z);
-        const rightCheekVec = new THREE.Vector3(rightCheek.x, rightCheek.y, rightCheek.z);
-        const yAxis = new THREE.Vector3().subVectors(foreheadVec, chinVec).normalize();
-        const xAxis = new THREE.Vector3().subVectors(rightCheekVec, leftCheekVec).normalize();
+        // ถ้า group ยังไม่พร้อม หรือรสชาตินี้ไม่ถูกเลือกอยู่ ให้หยุดทำงาน
+        if (!group || !chopstickGroup || !isVisible) {
+            return;
+        }
+
+        // ถ้าหาใบหน้าไม่เจอ
+        if (!landmarks) {
+            // [แก้ไข] แสดงโมเดล Fallback ทันทีถ้าไม่เจอหน้า
+            // เพื่อให้แน่ใจว่าผู้ใช้เห็นผลลัพธ์เสมอ แม้ระบบ face-tracking ไม่ทำงาน
+            if (fallbackAdjust && bowlAdjust) {
+                group.visible = true;
+                chopstickGroup.visible = true;
+
+                // [แก้ไข] คำนวณ scale factor ที่ถูกต้องเพื่อไม่ให้ค่าคูณกัน
+                const groupScaleFactor = fallbackAdjust.bowl.scale / bowlAdjust.scale;
+                group.position.fromArray(fallbackAdjust.bowl.position);
+                group.rotation.fromArray(fallbackAdjust.bowl.rotation);
+                group.scale.setScalar(groupScaleFactor);
+
+                // ปรับตำแหน่งตะเกียบ/ส้อม แยก
+                chopstickGroup.position.fromArray(fallbackAdjust.chopstick.position);
+                chopstickGroup.rotation.fromArray(fallbackAdjust.chopstick.rotation);
+                chopstickGroup.scale.setScalar(fallbackAdjust.chopstick.scale);
+
+                // เล่นอนิเมชันอ้าปาก (prop)
+                if (propModel) {
+                    propModel.visible = true;
+                    // prop ใช้ scale และ rotation เดียวกับ bowl ใน group หลัก
+                }
+                if (propActions.main) propActions.main.paused = false;
+
+                // อัพเดท mixer ของอนิเมชัน
+                if (propMixer) propMixer.update(delta);
+                if (chopstickMixer) chopstickMixer.update(delta);
+
+            } else {
+                // กรณีไม่มี fallbackAdjustments ให้ซ่อนโมเดลไปก่อน
+                group.visible = false;
+                chopstickGroup.visible = false;
+            }
+
+            // รีเซ็ตสถานะ "เคยวางแล้ว" เมื่อไม่เจอหน้า
+            // เพื่อให้ครั้งหน้าที่เจอหน้า โมเดลจะ snap ไปทันที ไม่ลอยมา
+            hasBeenPlaced.current = false;
+
+            return; // ออกจากการทำงานของ useFrame
+        }
+
+        // --- คำนวณตำแหน่งและทิศทางการหมุน (กลับไปใช้แบบดั้งเดิม) ---
+        const anchorPoint = landmarks[152];
+        const target = new THREE.Vector3();
+        if (anchorPoint) {
+            const screenX = (-anchorPoint.x + 0.5) * 2;
+            const screenY = -(anchorPoint.y - 0.5) * 2;
+            state.raycaster.setFromCamera({ x: screenX, y: screenY }, camera);
+            state.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), target);
+        }
+        const forehead = new THREE.Vector3(landmarks[10].x, landmarks[10].y, landmarks[10].z);
+        const chin = new THREE.Vector3(landmarks[152].x, landmarks[152].y, landmarks[152].z);
+        const leftCheek = new THREE.Vector3(landmarks[234].x, landmarks[234].y, landmarks[234].z);
+        const rightCheek = new THREE.Vector3(landmarks[454].x, landmarks[454].y, landmarks[454].z);
+        const yAxis = new THREE.Vector3().subVectors(forehead, chin).normalize();
+        const xAxis = new THREE.Vector3().subVectors(rightCheek, leftCheek).normalize();
         const zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
         const rotationMatrix = new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis);
         const faceQuaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
 
+        // --- ✨ Logic การวางและแสดงผลที่สมบูรณ์แบบ ✨ ---
         if (!hasBeenPlaced.current) {
+            // ครั้งแรกที่เจอหน้า: วาร์ปไปที่ตำแหน่งและทิศทางนั้นทันที (ตอนที่ model ยัง invisible)
             group.position.copy(target);
             group.quaternion.copy(faceQuaternion);
-            hasBeenPlaced.current = true;
+            hasBeenPlaced.current = true; // ตั้งธงว่าวางแล้ว
+
+            // จากนั้นค่อยสั่งให้ "แสดงผล" โมเดลจะโผล่มาในตำแหน่งที่ถูกต้องเลย
             group.visible = true;
+            chopstickGroup.visible = true;
         } else {
+            // ตั้งแต่ครั้งที่สองเป็นต้นไป: ใช้ lerp เพื่อความนุ่มนวล
             group.position.lerp(target, 0.5);
             group.quaternion.slerp(faceQuaternion, 0.5);
         }
 
-        // --- Logic การอ้าปาก/ปิดปาก: เล่น/หยุด/รีเซ็ตอนิเมชัน prop ---
-        const upperLip = getPoint(landmarks, 13);
-        const lowerLip = getPoint(landmarks, 14);
-        if (upperLip && lowerLip) {
-            const mouthOpening = Math.abs(lowerLip.y - upperLip.y) * 1000;
-            const MOUTH_OPEN_THRESHOLD = 15;
-            const currentMouthState = mouthOpening > MOUTH_OPEN_THRESHOLD ? "Open" : "Close";
-            if (currentMouthState !== lastMouthState.current) {
-                lastMouthState.current = currentMouthState;
-                const isMouthOpen = currentMouthState === "Open";
-                if (propActions.main) {
-                    if (isMouthOpen) {
-                        propActions.main.reset();
-                        propActions.main.paused = false;
-                        propModel.visible = true;
-                    } else {
-                        propActions.main.reset();
-                        propActions.main.paused = true;
-                        propModel.visible = false;
-                    }
-                }
-            }
+        // [แก้ไข] รีเซ็ตสเกลของ group และ transform ของ chopstick
+        // เพื่อป้องกันค่าจากโหมด fallback รั่วไหลมา
+        group.scale.set(1, 1, 1);
+        if (chopstickAdjust) {
+            chopstickGroup.position.fromArray(chopstickAdjust.position);
+            chopstickGroup.rotation.fromArray(chopstickAdjust.rotation);
+            chopstickGroup.scale.setScalar(chopstickAdjust.scale);
         }
+
+        // --- Logic การอ้าปากและ Animation (เหมือนเดิม) ---
+        const upperLip = landmarks[13];
+        const lowerLip = landmarks[14];
+        let mouthOpening = null;
+        if (upperLip && lowerLip) {
+            mouthOpening = Math.abs(lowerLip.y - upperLip.y) * 1000;
+        }
+        const MOUTH_OPEN_THRESHOLD = 15;
+        let currentMouthState = 'Close';
+        if (mouthOpening !== null) {
+            currentMouthState = mouthOpening > MOUTH_OPEN_THRESHOLD ? 'Open' : 'Close';
+        } else {
+            // fallback: ถ้า detect ไม่ได้ ให้ถือว่าปิดปาก
+            currentMouthState = 'Close';
+            // TODO: Debug log (Cannot detect mouth opening, fallback to Close.)
+        }
+
+        // [แก้ไข] อัปเดตสถานะอนิเมชันทุกเฟรม แทนการเช็คการเปลี่ยนแปลง
+        const isMouthOpen = currentMouthState === 'Open';
+        if (propActions.main) {
+            propModel.visible = isMouthOpen;
+            propActions.main.paused = !isMouthOpen;
+        } else {
+            // TODO: Debug log (propActions.main is null, cannot animate propModel.)
+        }
+
         if (propMixer) propMixer.update(delta);
         if (chopstickMixer) chopstickMixer.update(delta);
     });
 
+    // Don't render if any critical model failed to load
     if (bowlError || propError || chopstickError) {
         console.error("Model loading errors:", { bowlError, propError, chopstickError });
         return null;
     }
+
+    // Don't render if models aren't ready
     if (!bowlModel || !propModel || !chopstickModel) {
         return null;
     }
+
+    // --- ส่วน JSX ที่ return เหมือนเดิม ---
     return (
         <>
+            {/* ส่ง callback ที่ memoized เข้าไป */}
             {customTextureUrl && (
                 <TextureInjector url={customTextureUrl} model={bowlModel} onTextureApplied={handleTextureApplied} />
             )}
+            {/* เปลี่ยนเงื่อนไขมาใช้ state เดียว */}
             {isReadyToRender && (
                 <>
                     <group ref={groupRef} visible={false}>
                         <primitive object={bowlModel} position={bowlAdjust.position} rotation={bowlAdjust.rotation} scale={bowlAdjust.scale} />
                         <primitive object={propModel} position={propAdjust.position} rotation={propAdjust.rotation} scale={propAdjust.scale} />
                     </group>
-                    <group ref={chopstickGroupRef} position={chopstickAdjust.position} rotation={chopstickAdjust.rotation} scale={chopstickAdjust.scale} visible={true}>
+                    <group ref={chopstickGroupRef} position={chopstickAdjust.position} rotation={chopstickAdjust.rotation} scale={chopstickAdjust.scale} visible={false}>
                         <primitive object={chopstickModel} />
                     </group>
                 </>
@@ -407,10 +542,10 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
     const canvas2DRef = useRef(null);
     const landmarksRef = useRef(null);
     const glRef = useRef(null);
-    const [isReady, setIsReady] = useState(false);
+    const [isMediaPipeReady, setIsMediaPipeReady] = useState(false);
     const cameraInstanceRef = useRef(null);
-    const [serviceType, setServiceType] = useState(() => adaptiveFaceService.getServiceInfo().service);
-    const tfLoopRef = useRef(null);
+    // [ใหม่] State สำหรับเปิด/ปิดการติดตามใบหน้า
+    const [isTrackingEnabled, setIsTrackingEnabled] = useState(true);
 
     useImperativeHandle(ref, () => ({
         get arCanvas() { return glRef.current?.domElement; },
@@ -418,76 +553,24 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
     }), []);
 
     useEffect(() => {
-        const interval = setInterval(() => {
-            const info = adaptiveFaceService.getServiceInfo();
-            if (info.service !== serviceType) setServiceType(info.service);
-        }, 500);
-        return () => clearInterval(interval);
-    }, [serviceType]);
-
-    useEffect(() => {
-        return () => {
-            if (cameraInstanceRef.current) {
-                cameraInstanceRef.current.stop();
-                cameraInstanceRef.current = null;
-            }
-            if (tfLoopRef.current) {
-                tfLoopRef.current.cancelled = true;
-                tfLoopRef.current = null;
-            }
-            const videoElement = videoRef.current;
-            if (videoElement && videoElement.srcObject) {
-                const tracks = videoElement.srcObject.getTracks();
-                tracks.forEach(track => track.stop());
-                videoElement.srcObject = null;
-            }
-            setIsReady(false);
-        };
-    }, [serviceType, cameraFacingMode]);
-
-    useEffect(() => {
-        if (serviceType === "none") {
-            const videoElement = videoRef.current;
-            stopAllStreams(videoElement, cameraInstanceRef);
-            landmarksRef.current = null;
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacingMode } })
-                .then(stream => {
-                    videoElement.srcObject = stream;
-                    videoElement.onloadedmetadata = () => {
-                        videoElement.play().catch(e => console.warn("Video play failed:", e));
-                    };
-                })
-                .catch(err => {
-                    console.error("Cannot access camera for preview:", err);
-                });
-            setIsReady(true);
-            return () => {
-                setIsReady(false);
-            };
-        }
-    }, [serviceType, cameraFacingMode]);
-
-    useEffect(() => {
-        if (serviceType !== "mediapipe") return;
         mediaPipeService.initialize().then(() => {
-            setIsReady(true);
+            setIsMediaPipeReady(true);
         });
-    }, [serviceType]);
+    }, []);
 
+    // ✨ ย้อนกลับ useEffect นี้ไปเป็นเวอร์ชันที่ทำงานทันที ✨
     useEffect(() => {
-        if (serviceType !== "mediapipe") return;
         const videoElement = videoRef.current;
-        if (!videoElement || !isReady) return;
-        // หยุด stream เดิมก่อน
-        if (videoElement.srcObject) {
-            const tracks = videoElement.srcObject.getTracks();
-            tracks.forEach(track => track.stop());
-            videoElement.srcObject = null;
-        }
+        // เงื่อนไขการหยุดยังคงเดิม
+        if (!videoElement || !isMediaPipeReady) return;
+
         let camera = null;
+
         const startNewCamera = () => {
+            console.log(`(ARSuperDebug) Initializing camera with mode: ${cameraFacingMode}`);
             const faceMesh = mediaPipeService.getInstance();
             if (!faceMesh) return;
+
             faceMesh.onResults((results) => {
                 const canvasElement = canvas2DRef.current;
                 if (!canvasElement || !videoElement || videoElement.videoWidth === 0) return;
@@ -500,48 +583,66 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
                 landmarksRef.current = results.multiFaceLandmarks?.[0] || null;
                 canvasCtx.restore();
             });
+
+            // สร้างและเริ่มกล้องทันที
             camera = new Camera(videoElement, {
                 onFrame: async () => { await faceMesh.send({ image: videoElement }); },
                 width: 1280,
                 height: 720,
                 facingMode: cameraFacingMode
             });
+
             camera.start();
             cameraInstanceRef.current = camera;
         };
+
+        // หยุดกล้องเก่าก่อนเริ่มกล้องใหม่
         if (cameraInstanceRef.current) {
             cameraInstanceRef.current.stop().then(() => {
-                stopAllStreams(videoRef.current, cameraInstanceRef);
                 startNewCamera();
             });
         } else {
-            stopAllStreams(videoRef.current, cameraInstanceRef);
             startNewCamera();
         }
-        // รอ onloadedmetadata ก่อน play
-        if (videoElement) {
-            videoElement.onloadedmetadata = () => {
-                videoElement.play().catch(e => console.warn("Video play failed:", e));
-            };
-        }
+
+        // Cleanup function
         return () => {
+            console.log("(ARSuperDebug) Cleaning up camera.");
             if (cameraInstanceRef.current) {
                 cameraInstanceRef.current.stop();
                 cameraInstanceRef.current = null;
             }
         };
-    }, [cameraFacingMode, isReady, serviceType]);
+        // Dependency array กลับมาเป็นแบบเดิม
+    }, [cameraFacingMode, isMediaPipeReady]);
 
     return (
         <div className="super-debug-container">
-            <video
-                ref={videoRef}
-                className="input_video"
-                autoPlay
-                playsInline
-                style={{ display: serviceType !== 'mediapipe' ? 'block' : 'none', width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0, zIndex: 1, transform: 'scaleX(-1)' }}
-            />
-            {isReady && (
+            <video ref={videoRef} className="input_video" autoPlay playsInline style={{ display: 'none' }} />
+            {/* [DEBUG] ปุ่มสำหรับเปิด/ปิด Face Tracking ถูกคอมเมนต์ไว้ชั่วคราว
+            <button
+                onClick={() => setIsTrackingEnabled(p => !p)}
+                style={{
+                    position: 'absolute',
+                    top: '20px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 1001,
+                    padding: '12px 20px',
+                    fontSize: '14px',
+                    backgroundColor: `rgba(0, 0, 0, ${isTrackingEnabled ? '0.5' : '0.8'})`,
+                    color: 'white',
+                    border: `1px solid ${isTrackingEnabled ? 'lightgreen' : 'orange'}`,
+                    borderRadius: '25px',
+                    cursor: 'pointer',
+                    minWidth: '220px',
+                    textAlign: 'center'
+                }}
+            >
+                Face Tracking: {isTrackingEnabled ? 'ON' : 'OFF (Fallback Mode)'}
+            </button>
+            */}
+            {isMediaPipeReady && (
                 <>
                     <canvas ref={canvas2DRef} className="output_canvas_debug" />
                     <ThreeJSErrorBoundary>
@@ -553,7 +654,12 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
                                     const isVisible = selectedFlavor?.id === flavor.id;
                                     return (
                                         <group key={flavor.id} visible={isVisible}>
-                                            <FaceAnchor landmarksRef={landmarksRef} flavor={flavor} isVisible={isVisible} />
+                                            <FaceAnchor
+                                                landmarksRef={landmarksRef}
+                                                flavor={flavor}
+                                                isVisible={isVisible}
+                                                isTrackingEnabled={isTrackingEnabled}
+                                            />
                                             <HeadsUpDisplay selectedFlavor={flavor} isVisible={isVisible} />
                                         </group>
                                     );
@@ -562,27 +668,10 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
                             </Suspense>
                         </Canvas>
                     </ThreeJSErrorBoundary>
-                    {serviceType === "none" && (
-                        <div style={{ color: '#ffaa00', fontWeight: 'bold', fontSize: 20, textAlign: 'center', marginTop: 24 }}>
-                            👁️ Face detection is OFF (3D overlay is static)
-                        </div>
-                    )}
                 </>
             )}
         </div>
     );
 });
-
-// เพิ่มฟังก์ชันหยุดกล้องทุก engine
-function stopAllStreams(videoElement, cameraInstanceRef) {
-    if (videoElement && videoElement.srcObject) {
-        videoElement.srcObject.getTracks().forEach(track => track.stop());
-        videoElement.srcObject = null;
-    }
-    if (cameraInstanceRef && cameraInstanceRef.current) {
-        cameraInstanceRef.current.stop();
-        cameraInstanceRef.current = null;
-    }
-}
 
 export default ARSuperDebug;
