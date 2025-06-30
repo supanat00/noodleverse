@@ -1,8 +1,9 @@
 // src/components/AROverlay/AROverlay.jsx (Final Simplified Version)
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import './AROverlay.css';
 import { FLAVORS } from '../../data/flavors';
+import { isAndroid, isChrome } from 'react-device-detect';
 
 // UI Components
 import FlavorSelector from '../FlavorSelector/FlavorSelector';
@@ -16,6 +17,9 @@ const AROverlay = () => {
     const [cameraFacingMode, setCameraFacingMode] = useState('user');
     const arSystemRef = useRef(null);
     const selectedFlavor = FLAVORS.find(flavor => flavor.id === selectedFlavorId);
+
+    // ตรวจสอบว่าเป็น Chrome บน Android หรือไม่
+    const forceDisableTracking = useMemo(() => isAndroid && isChrome, []);
 
     // --- ฟังก์ชัน Callback ไม่มีการเปลี่ยนแปลง ---
     const handleSelectFlavor = useCallback((id) => {
@@ -74,6 +78,7 @@ const AROverlay = () => {
                 selectedFlavor={selectedFlavor}
                 allFlavors={FLAVORS}
                 cameraFacingMode={cameraFacingMode}
+                forceDisableTracking={forceDisableTracking}
             />
             <div className="ui-layer visible">
                 <FlavorSelector

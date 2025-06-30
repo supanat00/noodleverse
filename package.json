@@ -24,6 +24,7 @@
     "html2canvas": "^1.4.1",
     "mp4-muxer": "^5.2.1",
     "react": "^19.1.0",
+    "react-device-detect": "^2.2.3",
     "react-dom": "^19.1.0",
     "vite-plugin-pwa": "^1.0.0",
     "webm-duration-fix": "^1.0.4"

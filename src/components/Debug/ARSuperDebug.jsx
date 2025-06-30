@@ -553,7 +553,8 @@ function FaceAnchor({ landmarksRef, flavor, isVisible, isTrackingEnabled }) {
 const ARSuperDebug = forwardRef(({
     selectedFlavor,
     allFlavors = [],
-    cameraFacingMode
+    cameraFacingMode,
+    forceDisableTracking
 }, ref) => {
     // Refs and other state
     const glRef = useRef();
@@ -562,13 +563,14 @@ const ARSuperDebug = forwardRef(({
     const landmarksRef = useRef(null);
     const [isMediaPipeReady, setIsMediaPipeReady] = useState(false);
     const cameraInstanceRef = useRef(null);
-    // [นำกลับมา] State สำหรับเปิด/ปิดการติดตามใบหน้า
-    const [isTrackingEnabled, setIsTrackingEnabled] = useState(true);
+    // [แก้ไข] กำหนดค่า tracking โดยตรงจาก prop
+    // ถ้าเป็น Chrome on Android (forceDisableTracking=true) -> isTrackingEnabled จะเป็น false
+    const isTrackingEnabled = !forceDisableTracking;
 
     useImperativeHandle(ref, () => ({
         get arCanvas() { return glRef.current?.domElement; },
         get cameraCanvas() { return canvas2DRef.current; }
-    }), []);
+    }));
 
     useEffect(() => {
         mediaPipeService.initialize().then(() => {
@@ -636,17 +638,22 @@ const ARSuperDebug = forwardRef(({
     return (
         <div className="super-debug-container">
             <video ref={videoRef} className="input_video" autoPlay playsInline style={{ display: 'none' }} />
-            {/* [นำกลับมา] ปุ่มสำหรับเปิด/ปิด Face Tracking */}
+            {/* [คอมเมนต์ออก] ปุ่มสำหรับเปิด/ปิด Face Tracking
             <button
-                onClick={() => setIsTrackingEnabled(p => !p)}
-                className={`debug-button ${isTrackingEnabled ? 'active' : ''}`}
+                onClick={() => {}}
+                className={`debug-button`}
             >
-                Detect : {isTrackingEnabled ? 'ON' : 'OFF'}
+                Detect : ON/OFF
             </button>
+            */}
             {isMediaPipeReady && (
                 <>
                     <canvas ref={canvas2DRef} className="output_canvas_debug" />
-                    <Canvas ref={glRef} className="ar-canvas-3d-debug" gl={{ preserveDrawingBuffer: true }}>
+                    <Canvas
+                        onCreated={(state) => (glRef.current = state.gl)}
+                        className="ar-canvas-3d-debug"
+                        gl={{ preserveDrawingBuffer: true }}
+                    >
                         <ThreeJSErrorBoundary>
                             <ambientLight intensity={0.8} />
                             <directionalLight position={[0, 5, 5]} intensity={1} />
@@ -659,7 +666,7 @@ const ARSuperDebug = forwardRef(({
                                                 landmarksRef={landmarksRef}
                                                 flavor={flavor}
                                                 isVisible={isVisible}
-                                                isTrackingEnabled={isTrackingEnabled} // ใช้ state ที่นำกลับมา
+                                                isTrackingEnabled={isTrackingEnabled} // ใช้ตัวแปรที่กำหนดไว้
                                             />
                                             <HeadsUpDisplay selectedFlavor={flavor} isVisible={isVisible} />
                                         </group>
