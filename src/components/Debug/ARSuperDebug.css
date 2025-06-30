@@ -89,6 +89,8 @@
 }
 
 .threejs-error-fallback button:hover {
-  transform: translateY(-1px);
+  background-color: #e57373;
   box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
 }
+
+/* The .debug-button and its related styles are now removed. */

@@ -394,7 +394,20 @@ function FaceAnchor({ landmarksRef, flavor, isVisible, isTrackingEnabled }) {
                 // [แก้ไข] คำนวณ scale factor ที่ถูกต้องเพื่อไม่ให้ค่าคูณกัน
                 const groupScaleFactor = fallbackAdjust.bowl.scale / bowlAdjust.scale;
                 group.position.fromArray(fallbackAdjust.bowl.position);
-                group.rotation.fromArray(fallbackAdjust.bowl.rotation);
+
+                // --- ✨ [ใหม่] เพิ่ม Animation การหมุนเมื่อปิด Tracking ✨ ---
+                const baseRotation = new THREE.Euler().fromArray(fallbackAdjust.bowl.rotation);
+                const time = state.clock.getElapsedTime();
+
+                // เอียงระหว่าง +5 (หาจอ) และ -30 (หาตัว)
+                const angleOffset = THREE.MathUtils.degToRad(-12.5); // (-30 + 5) / 2
+                const angleAmplitude = THREE.MathUtils.degToRad(17.5); // (5 - (-30)) / 2
+                const rotationAngle = angleOffset + Math.sin(time * 1.5) * angleAmplitude;
+
+                const animatedRotation = new THREE.Euler(baseRotation.x + rotationAngle, baseRotation.y, baseRotation.z);
+                group.rotation.copy(animatedRotation);
+                // --- จบส่วน Animation ---
+
                 group.scale.setScalar(groupScaleFactor);
 
                 // ปรับตำแหน่งตะเกียบ/ส้อม แยก
@@ -537,15 +550,18 @@ function FaceAnchor({ landmarksRef, flavor, isVisible, isTrackingEnabled }) {
 // ====================================================================
 // Component หลักที่รวมทุกอย่างเข้าด้วยกัน (Cleaned Up)
 // ====================================================================
-const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacingMode }, ref) => {
+const ARSuperDebug = forwardRef(({
+    selectedFlavor,
+    allFlavors = [], // Keep this prop for now to avoid breaking changes if it's used somewhere
+    cameraFacingMode // Keep this prop for now
+}, ref) => {
+    // Refs and other state
+    const glRef = useRef();
+    const canvas2DRef = useRef();
     const videoRef = useRef(null);
-    const canvas2DRef = useRef(null);
     const landmarksRef = useRef(null);
-    const glRef = useRef(null);
     const [isMediaPipeReady, setIsMediaPipeReady] = useState(false);
     const cameraInstanceRef = useRef(null);
-    // [ใหม่] State สำหรับเปิด/ปิดการติดตามใบหน้า
-    const [isTrackingEnabled, setIsTrackingEnabled] = useState(true);
 
     useImperativeHandle(ref, () => ({
         get arCanvas() { return glRef.current?.domElement; },
@@ -567,7 +583,7 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
         let camera = null;
 
         const startNewCamera = () => {
-            console.log(`(ARSuperDebug) Initializing camera with mode: ${cameraFacingMode}`);
+            console.log(`(ARSuperDebug) Initializing camera with mode: ${selectedFlavor.cameraFacingMode}`);
             const faceMesh = mediaPipeService.getInstance();
             if (!faceMesh) return;
 
@@ -589,7 +605,7 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
                 onFrame: async () => { await faceMesh.send({ image: videoElement }); },
                 width: 1280,
                 height: 720,
-                facingMode: cameraFacingMode
+                facingMode: selectedFlavor.cameraFacingMode
             });
 
             camera.start();
@@ -613,40 +629,16 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
                 cameraInstanceRef.current = null;
             }
         };
-        // Dependency array กลับมาเป็นแบบเดิม
     }, [cameraFacingMode, isMediaPipeReady]);
 
     return (
         <div className="super-debug-container">
             <video ref={videoRef} className="input_video" autoPlay playsInline style={{ display: 'none' }} />
-            {/* [DEBUG] ปุ่มสำหรับเปิด/ปิด Face Tracking ถูกคอมเมนต์ไว้ชั่วคราว
-            <button
-                onClick={() => setIsTrackingEnabled(p => !p)}
-                style={{
-                    position: 'absolute',
-                    top: '20px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    zIndex: 1001,
-                    padding: '12px 20px',
-                    fontSize: '14px',
-                    backgroundColor: `rgba(0, 0, 0, ${isTrackingEnabled ? '0.5' : '0.8'})`,
-                    color: 'white',
-                    border: `1px solid ${isTrackingEnabled ? 'lightgreen' : 'orange'}`,
-                    borderRadius: '25px',
-                    cursor: 'pointer',
-                    minWidth: '220px',
-                    textAlign: 'center'
-                }}
-            >
-                Face Tracking: {isTrackingEnabled ? 'ON' : 'OFF (Fallback Mode)'}
-            </button>
-            */}
             {isMediaPipeReady && (
                 <>
                     <canvas ref={canvas2DRef} className="output_canvas_debug" />
-                    <ThreeJSErrorBoundary>
-                        <Canvas className="ar-canvas-3d-debug" onCreated={(state) => { glRef.current = state.gl; }} gl={{ preserveDrawingBuffer: true }}>
+                    <Canvas ref={glRef} className="ar-canvas-3d-debug" gl={{ preserveDrawingBuffer: true }}>
+                        <ThreeJSErrorBoundary>
                             <ambientLight intensity={0.8} />
                             <directionalLight position={[0, 5, 5]} intensity={1} />
                             <Suspense fallback={null}>
@@ -658,7 +650,7 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
                                                 landmarksRef={landmarksRef}
                                                 flavor={flavor}
                                                 isVisible={isVisible}
-                                                isTrackingEnabled={isTrackingEnabled}
+                                                isTrackingEnabled={true}
                                             />
                                             <HeadsUpDisplay selectedFlavor={flavor} isVisible={isVisible} />
                                         </group>
@@ -666,8 +658,8 @@ const ARSuperDebug = forwardRef(({ selectedFlavor, allFlavors = [], cameraFacing
                                 })}
                                 <Preload all />
                             </Suspense>
-                        </Canvas>
-                    </ThreeJSErrorBoundary>
+                        </ThreeJSErrorBoundary>
+                    </Canvas>
                 </>
             )}
         </div>
