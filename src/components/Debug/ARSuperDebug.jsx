@@ -552,8 +552,8 @@ function FaceAnchor({ landmarksRef, flavor, isVisible, isTrackingEnabled }) {
 // ====================================================================
 const ARSuperDebug = forwardRef(({
     selectedFlavor,
-    allFlavors = [], // Keep this prop for now to avoid breaking changes if it's used somewhere
-    cameraFacingMode // Keep this prop for now
+    allFlavors = [],
+    cameraFacingMode
 }, ref) => {
     // Refs and other state
     const glRef = useRef();
@@ -562,6 +562,8 @@ const ARSuperDebug = forwardRef(({
     const landmarksRef = useRef(null);
     const [isMediaPipeReady, setIsMediaPipeReady] = useState(false);
     const cameraInstanceRef = useRef(null);
+    // [นำกลับมา] State สำหรับเปิด/ปิดการติดตามใบหน้า
+    const [isTrackingEnabled, setIsTrackingEnabled] = useState(true);
 
     useImperativeHandle(ref, () => ({
         get arCanvas() { return glRef.current?.domElement; },
@@ -634,6 +636,13 @@ const ARSuperDebug = forwardRef(({
     return (
         <div className="super-debug-container">
             <video ref={videoRef} className="input_video" autoPlay playsInline style={{ display: 'none' }} />
+            {/* [นำกลับมา] ปุ่มสำหรับเปิด/ปิด Face Tracking */}
+            <button
+                onClick={() => setIsTrackingEnabled(p => !p)}
+                className={`debug-button ${isTrackingEnabled ? 'active' : ''}`}
+            >
+                Detect : {isTrackingEnabled ? 'ON' : 'OFF'}
+            </button>
             {isMediaPipeReady && (
                 <>
                     <canvas ref={canvas2DRef} className="output_canvas_debug" />
@@ -650,7 +659,7 @@ const ARSuperDebug = forwardRef(({
                                                 landmarksRef={landmarksRef}
                                                 flavor={flavor}
                                                 isVisible={isVisible}
-                                                isTrackingEnabled={true}
+                                                isTrackingEnabled={isTrackingEnabled} // ใช้ state ที่นำกลับมา
                                             />
                                             <HeadsUpDisplay selectedFlavor={flavor} isVisible={isVisible} />
                                         </group>
