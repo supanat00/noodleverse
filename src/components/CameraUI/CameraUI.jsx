@@ -4,13 +4,13 @@ import './CameraUI.css';
 import PreviewModal from '../PreviewModal/PreviewModal';
 
 // --- Assets & Icons ---
-import iconSwitchCamera from '/assets/icons/switch-camera.webp';
+// import iconSwitchCamera from '/assets/icons/switch-camera.webp';
 
-const CameraIcon = () => <svg width="24px" height="24px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="#000000" strokeWidth="1.5" /><path d="M8.5 4.5h7c3.06 0 4.58 0 5.5.87a3.83 3.83 0 011.22 1.29c.88 1 .88 2.5.88 5.56s0 4.59-.88 5.69a3.83 3.83 0 01-1.22 1.3c-.92.87-2.44.87-5.5.87h-7c-3.06 0-4.58 0-5.5-.87a3.83 3.83 0 01-1.22-1.3C2 17.56 2 16.03 2 13s0-4.59.88-5.69A3.83 3.83 0 014 6.01C4.92 5.14 6.44 5.14 9.5 5.14h0" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" /><path d="M18 10h-1" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" /></svg>;
+const CameraIcon = () => <svg width="24px" height="24px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="#000000" strokeWidth="1.5" /><path d="M8.5 4.5h7c3.06 0 4.58 0 5.5.87a3.83 3.83 0 011.22 1.29c.88 1 .88 2.5.88 5.56s0 4.59-.88 5.69a3.83 3.83 0 01-1.22 1.3C2 17.56 2 16.03 2 13s0-4.59.88-5.69A3.83 3.83 0 014 6.01C4.92 5.14 6.44 5.14 9.5 5.14h0" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" /><path d="M18 10h-1" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" /></svg>;
 const VideoIcon = () => <svg width="24px" height="24px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 10l2.58-1.55a2 2 0 013.42 1.55v4a2 2 0 01-3.42 1.55L16 14M6.2 18h6.6c1.12 0 1.68 0 2.1-.22a2 2 0 001.1-1.1c.22-.42.22-1 .22-2.1V9.2c0-1.12 0-1.68-.22-2.1a2 2 0 00-1.1-1.1c-.42-.22-1-.22-2.1-.22H6.2c-1.12 0-1.68 0-2.1.22a2 2 0 00-1.1 1.1c-.22.42-.22 1-.22 2.1v3.6c0 1.12 0 1.68.22 2.1a2 2 0 001.1 1.1c.42.22 1 .22 2.1.22z" stroke="#000000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 
 
-const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
+const CameraUI = ({ arSystemRef, cameraFacingMode }) => {
 
     const [mode, setMode] = useState('photo');
     const [isRecording, setIsRecording] = useState(false);
@@ -312,7 +312,6 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
 
     // --- Utility Functions ---
 
-    const handleSwitchCamera = useCallback(() => onSwitchCamera(cameraFacingMode === 'user' ? 'environment' : 'user'), [cameraFacingMode, onSwitchCamera]);
     // --- Preview Action Handlers ---
     const handleRetry = useCallback(() => setPreview(null), []);
 
@@ -394,9 +393,9 @@ const CameraUI = ({ arSystemRef, cameraFacingMode, onSwitchCamera }) => {
 
             <div className={`camera-controls ${(preview || isRecording || isProcessing) ? 'hidden' : ''}`}>
                 <div className="camera-bar-col left">
-                    <button className="action-button side-button-left" onClick={handleSwitchCamera} aria-label="Switch Camera" disabled={isRecording || isProcessing}>
+                    {/* <button className="action-button side-button-left" onClick={handleSwitchCamera} aria-label="Switch Camera" disabled={isRecording || isProcessing}>
                         <img src={iconSwitchCamera} alt="Switch Camera" className={`action-icon ${cameraFacingMode !== 'user' ? 'flipping' : ''}`} />
-                    </button>
+                    </button> */}
                 </div>
                 <div className="camera-bar-col center">
                     {mode === 'photo' ? (

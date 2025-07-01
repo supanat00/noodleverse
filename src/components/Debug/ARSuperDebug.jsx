@@ -136,6 +136,60 @@ function useRobustTexture(url) {
     return { texture, error, isLoading };
 }
 
+// ✨ [ใหม่] Hook สำหรับจัดการ Image Sequence Texture ✨
+function useImageSequenceTexture(basePath, totalFrames) {
+    const [frameIndex, setFrameIndex] = useState(0);
+
+    // สร้าง URL ของแต่ละเฟรม
+    const urls = useMemo(() =>
+        Array.from({ length: totalFrames }, (_, i) => `${basePath}/animate${20000 + i}.png`),
+        [basePath, totalFrames]
+    );
+
+    // โหลด Texture ทั้งหมดล่วงหน้า
+    const textures = useTexture(urls);
+
+    // อัปเดตเฟรมในแต่ละ Animation Frame
+    useFrame((_, delta) => {
+        // 20 FPS
+        setFrameIndex(current => (current + delta * 20) % totalFrames);
+    });
+
+    // คืนค่า Texture ของเฟรมปัจจุบัน
+    return textures[Math.floor(frameIndex)];
+}
+
+// ✨ [ใหม่] คอมโพเนนต์สำหรับแสดงผล Sparkle Effect ✨
+function SparkleEffect({ isVisible, className }) {
+    const texture = useImageSequenceTexture('/assets/sequences/sparkle', 84);
+    const { viewport, size } = useThree();
+
+    // คำนวณขนาดของ Plane ให้ใกล้เคียงกับ CSS เดิม
+    const scale = useMemo(() => {
+        const pxToWorldRatio = viewport.width / size.width;
+        const widthInPx = Math.min(500, size.width); // ทำให้ขนาดเท่ากันหมด
+        const worldWidth = widthInPx * pxToWorldRatio;
+        const worldHeight = worldWidth / (900 / 502);
+        return [worldWidth, worldHeight, 1];
+    }, [viewport, size]);
+
+    const position = useMemo(() => {
+        if (className === 'wide') {
+            return [0, -2, 0.2]; // เพิ่มค่า Z เพื่อดึงให้มาอยู่ข้างหน้า
+        }
+        return [0, -1.3, 0.08];
+    }, [className]);
+
+    if (!isVisible) return null;
+
+    return (
+        <mesh position={position} scale={scale}>
+            <planeGeometry args={[1, 1]} />
+            <meshBasicMaterial map={texture} transparent depthWrite={false} />
+        </mesh>
+    );
+}
+
 // HeadsUpDisplay component with improved error handling
 function HeadsUpDisplay({ selectedFlavor, isVisible }) {
     const { viewport, size } = useThree();
@@ -244,7 +298,7 @@ function TextureInjector({ url, model, onTextureApplied }) {
 // ====================================================================
 // FaceAnchor Component (Production-Ready with Error Handling)
 // ====================================================================
-function FaceAnchor({ landmarksRef, flavor, isVisible, isTrackingEnabled }) {
+function FaceAnchor({ landmarksRef, flavor, isVisible, isTrackingEnabled, showSparkle, sparkleClassName }) {
     const groupRef = useRef();
     const chopstickGroupRef = useRef();
     const { camera } = useThree();
@@ -540,6 +594,7 @@ function FaceAnchor({ landmarksRef, flavor, isVisible, isTrackingEnabled }) {
                     </group>
                 </>
             )}
+            <SparkleEffect isVisible={showSparkle} className={sparkleClassName} />
         </>
     );
 }
@@ -551,7 +606,9 @@ const ARSuperDebug = forwardRef(({
     selectedFlavor,
     allFlavors = [],
     cameraFacingMode,
-    forceDisableTracking
+    forceDisableTracking,
+    showSparkle,
+    sparkleClassName
 }, ref) => {
     // Refs and other state
     const glRef = useRef();
@@ -663,7 +720,9 @@ const ARSuperDebug = forwardRef(({
                                                 landmarksRef={landmarksRef}
                                                 flavor={flavor}
                                                 isVisible={isVisible}
-                                                isTrackingEnabled={isTrackingEnabled} // ใช้ตัวแปรที่กำหนดไว้
+                                                isTrackingEnabled={isTrackingEnabled}
+                                                showSparkle={showSparkle}
+                                                sparkleClassName={sparkleClassName}
                                             />
                                             <HeadsUpDisplay selectedFlavor={flavor} isVisible={isVisible} />
                                         </group>

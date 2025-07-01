@@ -15,6 +15,7 @@ const AROverlay = () => {
     // --- State ทั้งหมดกลับมาเป็นแบบดั้งเดิม ---
     const [selectedFlavorId, setSelectedFlavorId] = useState(FLAVORS[0].id);
     const [cameraFacingMode, setCameraFacingMode] = useState('user');
+    const [fallbackAdjustments, setFallbackAdjustments] = useState(false);
     const arSystemRef = useRef(null);
     const selectedFlavor = FLAVORS.find(flavor => flavor.id === selectedFlavorId);
 
@@ -35,9 +36,8 @@ const AROverlay = () => {
         const handleCameraSwitchFailed = (event) => {
             const { requestedMode, fallbackMode } = event.detail;
             console.log(`🔄 AROverlay: Camera switch failed from ${requestedMode} to ${fallbackMode}`);
-            console.log(`🔄 AROverlay: Current cameraFacingMode before: ${cameraFacingMode}`);
             setCameraFacingMode(fallbackMode);
-            console.log(`🔄 AROverlay: Camera mode changed to: ${fallbackMode}`);
+            setFallbackAdjustments(true);
         };
 
         console.log("🎧 AROverlay: Adding cameraSwitchFailed event listener");
@@ -47,7 +47,15 @@ const AROverlay = () => {
             console.log("🎧 AROverlay: Removing cameraSwitchFailed event listener");
             window.removeEventListener('cameraSwitchFailed', handleCameraSwitchFailed);
         };
-    }, [cameraFacingMode]);
+    }, []);
+
+    const showSparkle = useMemo(() => fallbackAdjustments || forceDisableTracking, [fallbackAdjustments, forceDisableTracking]);
+    const sparkleClassName = useMemo(() => {
+        if (!selectedFlavor || selectedFlavor.id === FLAVORS[0].id) {
+            return '';
+        }
+        return 'wide';
+    }, [selectedFlavor]);
 
     // Preload all presenter videos (hidden)
     useEffect(() => {
@@ -79,6 +87,8 @@ const AROverlay = () => {
                 allFlavors={FLAVORS}
                 cameraFacingMode={cameraFacingMode}
                 forceDisableTracking={forceDisableTracking}
+                showSparkle={showSparkle}
+                sparkleClassName={sparkleClassName}
             />
             <div className="ui-layer visible">
                 <FlavorSelector

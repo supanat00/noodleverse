@@ -20,17 +20,16 @@ export const FLAVORS = [
     iconSrc: iconGochucheese,
     videoPublicId: presenter03,
     models: {
-      bowl: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750756208/TKO/MAMAOK/models/gochucheese/gochucheese_bowl.glb",
+      bowl: "https://res.cloudinary.com/da8eemrq8/image/upload/v1751360345/TKO/MAMAOK/models/gochucheese/Gochucheese_bowl_04_xqhayo.glb",
       chopstick:
         "https://res.cloudinary.com/da8eemrq8/image/upload/v1750138306/TKO/MAMAOK/models/gochucheese/gochucheese_fork.glb",
-      prop: "https://res.cloudinary.com/da8eemrq8/image/upload/v1750756209/TKO/MAMAOK/models/gochucheese/gochucheese_prop.glb",
+      prop: "https://res.cloudinary.com/da8eemrq8/image/upload/v1751363366/TKO/MAMAOK/models/gochucheese/Gochucheese_prop_04_eejvbw.glb",
     },
     adjustments: {
       bowl: {
         position: [0, 2.65, 0], // [x, y, z] ออฟเซ็ตจากจุดยึด (คาง)
         rotation: [Math.PI, 0, 0], // [x, y, z] การหมุน (เรเดียน)
         scale: 1.35, // ขนาด (ตัวเลขเดียวสำหรับทุกแกน)
-        customTexture: "/assets/textures/cup_tex.png",
       },
       prop: {
         position: [0, 3.5, 0], // ขยับ prop ขึ้นมานิดหน่อยและมาข้างหน้า
@@ -125,7 +124,7 @@ export const FLAVORS = [
         scale: 1.35, // ขนาด (ตัวเลขเดียวสำหรับทุกแกน)
       },
       prop: {
-        position: [0, 2.65, 0], // ขยับ prop ขึ้นมานิดหน่อยและมาข้างหน้า
+        position: [0, 3.5, 0], // ขยับ prop ขึ้นมานิดหน่อยและมาข้างหน้า
         rotation: [Math.PI, 0, 0],
         scale: 1.35,
       },
@@ -147,9 +146,9 @@ export const FLAVORS = [
         scale: 1.35,
       },
       chopstick: {
-        position: [-0.75, -3.15, 1.5],
+        position: [-1.75, -4.35, 0],
         rotation: [0, 0, 0],
-        scale: 0.85,
+        scale: 1.35,
       },
     },
   },

@@ -251,3 +251,26 @@
     margin-bottom: 48px;
   }
 }
+
+/* --- Fallback Video Presenter --- */
+#video-present-fallback {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 500px; /* สามารถปรับค่าได้ตามความเหมาะสม */
+  pointer-events: none;
+  z-index: 1500;
+}
+
+#video-present-fallback img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 900 / 502;
+  object-fit: contain;
+}
+
+#video-present-fallback.wide {
+  max-width: 100%;
+}
