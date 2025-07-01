@@ -395,18 +395,15 @@ function FaceAnchor({ landmarksRef, flavor, isVisible, isTrackingEnabled }) {
                 const groupScaleFactor = fallbackAdjust.bowl.scale / bowlAdjust.scale;
                 group.position.fromArray(fallbackAdjust.bowl.position);
 
-                // --- ✨ [ใหม่] เพิ่ม Animation การหมุนเมื่อปิด Tracking ✨ ---
-                const baseRotation = new THREE.Euler().fromArray(fallbackAdjust.bowl.rotation);
-                const time = state.clock.getElapsedTime();
-
-                // เอียงระหว่าง +5 (หาจอ) และ -30 (หาตัว)
-                const angleOffset = THREE.MathUtils.degToRad(-12.5); // (-30 + 5) / 2
-                const angleAmplitude = THREE.MathUtils.degToRad(17.5); // (5 - (-30)) / 2
-                const rotationAngle = angleOffset + Math.sin(time * 1.5) * angleAmplitude;
-
-                const animatedRotation = new THREE.Euler(baseRotation.x + rotationAngle, baseRotation.y, baseRotation.z);
-                group.rotation.copy(animatedRotation);
-                // --- จบส่วน Animation ---
+                // [แก้ไข] ทำให้โมเดลหมุนไปมาช้าๆ รอบแกน Y
+                const initialRotation = new THREE.Euler().fromArray(fallbackAdjust.bowl.rotation);
+                const rotationSpeed = 0.5; // ความเร็วในการหมุน
+                const rotationAmount = Math.PI / 8; // 22.5 องศา
+                group.rotation.set(
+                    initialRotation.x,
+                    initialRotation.y + Math.sin(state.clock.getElapsedTime() * rotationSpeed) * rotationAmount,
+                    initialRotation.z
+                );
 
                 group.scale.setScalar(groupScaleFactor);
 
