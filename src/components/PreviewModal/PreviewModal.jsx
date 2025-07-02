@@ -29,6 +29,8 @@ const ImagePreloader = ({ imageUrl, onLoaded }) => {
 const PreviewModal = ({ preview, onRetry, onSave, onShare }) => {
     const videoRef = useRef(null);
     const [areAssetsReady, setAreAssetsReady] = useState(false);
+    const [showFeedback, setShowFeedback] = useState(false);
+    const [feedbackMessage, setFeedbackMessage] = useState('');
 
     // --- Platform detection ---
     let isIOS_Safari = false;
@@ -50,6 +52,25 @@ const PreviewModal = ({ preview, onRetry, onSave, onShare }) => {
 
     // Preload background image before showing modal
     const handleBackgroundLoaded = () => setAreAssetsReady(true);
+
+    // ฟังก์ชันแสดงผลยืนยัน
+    const showFeedbackMessage = (message) => {
+        setFeedbackMessage(message);
+        setShowFeedback(true);
+        setTimeout(() => setShowFeedback(false), 2000);
+    };
+
+    // ฟังก์ชันจัดการการบันทึก
+    const handleSave = () => {
+        onSave();
+        showFeedbackMessage('✅ บันทึกแล้ว!');
+    };
+
+    // ฟังก์ชันจัดการการแชร์
+    const handleShare = () => {
+        onShare();
+        showFeedbackMessage('📤 แชร์แล้ว!');
+    };
 
     return (
         <>
@@ -138,7 +159,7 @@ const PreviewModal = ({ preview, onRetry, onSave, onShare }) => {
                                     <button className="preview-button primary" onClick={onRetry}>
                                         เล่นอีกครั้ง
                                     </button>
-                                    <button className="preview-button secondary" onClick={onShare}>
+                                    <button className="preview-button secondary" onClick={handleShare}>
                                         บันทึก
                                     </button>
                                 </div>
@@ -146,10 +167,10 @@ const PreviewModal = ({ preview, onRetry, onSave, onShare }) => {
                         ) : (
                             <>
                                 <div className="preview-actions-top-row">
-                                    <button className="preview-button secondary" onClick={onSave}>
+                                    <button className="preview-button secondary" onClick={handleSave}>
                                         บันทึก
                                     </button>
-                                    <button className="preview-button secondary" onClick={onShare}>
+                                    <button className="preview-button secondary" onClick={handleShare}>
                                         แชร์
                                     </button>
                                 </div>
@@ -159,6 +180,15 @@ const PreviewModal = ({ preview, onRetry, onSave, onShare }) => {
                             </>
                         )}
                     </div>
+
+
+
+                    {/* --- การแสดงผลยืนยัน --- */}
+                    {showFeedback && (
+                        <div className="feedback-message">
+                            <p>{feedbackMessage}</p>
+                        </div>
+                    )}
                 </div>
             )}
         </>
