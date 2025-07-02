@@ -2,6 +2,9 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import './CameraUI.css';
 
 import PreviewModal from '../PreviewModal/PreviewModal';
+import { getVideoMimeTypes, detectBrowserAndPlatform } from '../../utils/deviceUtils';
+import { testVideoBlob } from '../../utils/browserTest';
+import { createCorrectBlob, testVideoPlayability, convertVideoForDownload } from '../../utils/videoUtils';
 
 // --- Assets & Icons ---
 // import iconSwitchCamera from '/assets/icons/switch-camera.webp';
@@ -136,28 +139,40 @@ const CameraUI = ({ arSystemRef, cameraFacingMode }) => {
             const combinedStream = new MediaStream(streamTracks);
 
             // 4. Enhanced MIME type detection for better cross-browser compatibility
-            const mimeTypes = [
-                'video/mp4', // Prioritize MP4 for iOS compatibility
-                'video/webm;codecs=vp9,opus',
-                'video/webm;codecs=vp8,opus',
-                'video/webm',
-                'video/ogg;codecs=theora,vorbis'
-            ];
+            const mimeTypes = getVideoMimeTypes();
+            const { isIOS, isSafari, isChrome } = detectBrowserAndPlatform();
+
+            console.log(`Browser detection: iOS=${isIOS}, Safari=${isSafari}, Chrome=${isChrome}`);
+            console.log(`Available MIME types:`, mimeTypes);
 
             let selectedMimeType = null;
+
+            // ทดสอบ MIME types ที่รองรับ
             for (const mimeType of mimeTypes) {
                 if (MediaRecorder.isTypeSupported(mimeType)) {
                     selectedMimeType = mimeType;
-                    console.log(`Using MIME type: ${mimeType}`);
+                    console.log(`✅ Supported MIME type: ${mimeType}`);
                     break;
+                } else {
+                    console.log(`❌ Not supported: ${mimeType}`);
                 }
             }
 
             if (!selectedMimeType) {
                 console.warn("No supported MIME type found, using browser default");
+                // ใช้ fallback MIME type ตาม browser
+                if (isIOS || isSafari) {
+                    selectedMimeType = 'video/mp4';
+                } else if (isChrome) {
+                    selectedMimeType = 'video/mp4';
+                } else {
+                    selectedMimeType = 'video/mp4';
+                }
+                console.log(`Using fallback MIME type: ${selectedMimeType}`);
             }
 
             const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
+            console.log(`MediaRecorder options:`, options);
 
             // 5. สร้าง Instance ของ MediaRecorder
             mediaRecorderRef.current = new MediaRecorder(combinedStream, options);
@@ -182,20 +197,55 @@ const CameraUI = ({ arSystemRef, cameraFacingMode }) => {
                 setIsProcessing(false);
             };
 
-            mediaRecorderRef.current.onstop = () => {
+            mediaRecorderRef.current.onstop = async () => {
                 console.log("Processing video file...");
                 setIsProcessing(true);
 
                 try {
-                    const mimeType = mediaRecorderRef.current?.mimeType || selectedMimeType || 'video/mp4';
-                    const videoBlob = new Blob(recordedChunksRef.current, { type: mimeType });
+                    // ใช้ MIME type ที่ MediaRecorder จริงๆ ใช้
+                    const actualMimeType = mediaRecorderRef.current?.mimeType;
+                    console.log("Actual MediaRecorder MIME type:", actualMimeType);
+
+                    // ตรวจสอบและแก้ไข MIME type ให้ถูกต้อง
+                    let finalMimeType = actualMimeType;
+
+                    // หาก MIME type ไม่ถูกต้อง ให้ใช้ fallback
+                    if (!finalMimeType || finalMimeType === 'video/webm') {
+                        const { isIOS, isSafari, isChrome } = detectBrowserAndPlatform();
+                        if (isIOS || isSafari) {
+                            finalMimeType = 'video/mp4';
+                        } else if (isChrome) {
+                            finalMimeType = 'video/mp4';
+                        } else {
+                            finalMimeType = 'video/mp4';
+                        }
+                        console.log("Using fallback MIME type:", finalMimeType);
+                    }
+
+                    // สร้าง Blob ด้วย MIME type ที่ถูกต้อง
+                    const videoBlob = createCorrectBlob(recordedChunksRef.current, finalMimeType);
 
                     if (videoBlob.size === 0) {
                         throw new Error("Recorded video is empty");
                     }
 
+                    console.log(`Video blob size: ${(videoBlob.size / 1024 / 1024).toFixed(2)}MB`);
+                    console.log(`Video blob type: ${videoBlob.type}`);
+
+                    // ทดสอบ Blob ก่อนสร้าง URL
+                    const blobTestResult = testVideoBlob(videoBlob, finalMimeType);
+                    if (!blobTestResult) {
+                        console.warn("⚠️ Blob test failed, but continuing...");
+                    }
+
+                    // ทดสอบการเล่นวิดีโอ
+                    const playabilityTest = await testVideoPlayability(videoBlob);
+                    if (!playabilityTest) {
+                        console.warn("⚠️ Video playability test failed, but continuing...");
+                    }
+
                     const videoUrl = URL.createObjectURL(videoBlob);
-                    setPreview({ type: 'video', src: videoUrl, mimeType: mimeType });
+                    setPreview({ type: 'video', src: videoUrl, mimeType: finalMimeType });
 
                     console.log(`Video recorded successfully: ${(videoBlob.size / 1024 / 1024).toFixed(2)}MB`);
                 } catch (processingError) {
@@ -315,30 +365,92 @@ const CameraUI = ({ arSystemRef, cameraFacingMode }) => {
     // --- Preview Action Handlers ---
     const handleRetry = useCallback(() => setPreview(null), []);
 
-    const handleDownload = useCallback(() => {
+    const handleDownload = useCallback(async () => {
         if (!preview?.src) return;
-        const a = document.createElement('a');
-        a.href = preview.src;
-        // ใช้ mimeType ที่ได้มาในการตั้งชื่อไฟล์
-        const extension = (preview.mimeType?.includes('mp4')) ? 'mp4' : 'webm';
-        a.download = preview.type === 'video' ? `mama-noodleverse.${extension}` : 'mama-noodleverse.png';
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        // ปิด modal ทันทีหลังดาวน์โหลดทั้งภาพและวิดีโอ
-        setPreview(null);
+
+        try {
+            // สำหรับวิดีโอ ให้แปลงเป็นรูปแบบที่เหมาะสมก่อนดาวน์โหลด
+            let downloadUrl = preview.src;
+            let filename = 'mama-noodleverse.png';
+
+            if (preview.type === 'video') {
+                const response = await fetch(preview.src);
+                const originalBlob = await response.blob();
+                const convertedBlob = await convertVideoForDownload(originalBlob, preview.mimeType);
+
+                downloadUrl = URL.createObjectURL(convertedBlob);
+
+                // กำหนดนามสกุลไฟล์ตาม MIME type
+                let extension = 'mp4';
+                if (convertedBlob.type.includes('webm')) {
+                    extension = 'webm';
+                } else if (convertedBlob.type.includes('ogg')) {
+                    extension = 'ogv';
+                }
+                filename = `mama-noodleverse.${extension}`;
+
+                console.log(`Downloading converted video: ${filename} with MIME type: ${convertedBlob.type}`);
+            }
+
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = filename;
+
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // Cleanup URL ที่สร้างใหม่
+            if (preview.type === 'video' && downloadUrl !== preview.src) {
+                setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+            }
+        } catch (error) {
+            console.error("Download error:", error);
+            alert("เกิดข้อผิดพลาดในการดาวน์โหลด กรุณาลองใหม่อีกครั้ง");
+        }
     }, [preview]);
 
-    // --- แชร์: fallback กลับไปใช้วิธีเดิม ---
+    // --- แชร์: ปรับปรุงการจัดการ MIME type ---
     const handleShare = useCallback(async () => {
         if (!preview?.src) return;
         try {
             const response = await fetch(preview.src);
             const blob = await response.blob();
-            const fileType = preview.type === 'video' ? 'video/mp4' : 'image/png';
-            const file = new File([blob], `mama-noodleverse.${fileType.split('/')[1]}`, { type: fileType });
+
+            // กำหนด MIME type และนามสกุลไฟล์ที่ถูกต้อง
+            let fileType = 'image/png';
+            let extension = 'png';
+
+            if (preview.type === 'video') {
+                // ตรวจสอบ browser เพื่อกำหนด MIME type ที่เหมาะสม
+                const { isAndroid, isChrome } = detectBrowserAndPlatform();
+
+                if (isAndroid || isChrome) {
+                    // สำหรับ Android/Chrome ใช้ WebM
+                    fileType = 'video/webm';
+                    extension = 'webm';
+                } else if (preview.mimeType?.includes('mp4')) {
+                    fileType = 'video/mp4';
+                    extension = 'mp4';
+                } else if (preview.mimeType?.includes('webm')) {
+                    fileType = 'video/webm';
+                    extension = 'webm';
+                } else if (preview.mimeType?.includes('ogg')) {
+                    fileType = 'video/ogg';
+                    extension = 'ogv';
+                } else {
+                    // fallback ใช้ mp4
+                    fileType = 'video/mp4';
+                    extension = 'mp4';
+                }
+            }
+
+            const filename = `mama-noodleverse.${extension}`;
+            const file = new File([blob], filename, { type: fileType });
+
+            console.log(`Sharing file: ${filename} with MIME type: ${fileType}`);
 
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                 await navigator.share({

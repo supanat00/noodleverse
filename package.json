@@ -22,6 +22,7 @@
     "@react-three/fiber": "^9.1.2",
     "@react-three/postprocessing": "^3.0.4",
     "cloudinary": "^2.7.0",
+    "gifler": "^0.1.0",
     "html2canvas": "^1.4.1",
     "mp4-muxer": "^5.2.1",
     "postprocessing": "^6.37.4",

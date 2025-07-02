@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { detectBrowserAndPlatform } from "../utils/deviceUtils";
 
 /**
  * useUserCamera Hook
@@ -22,9 +23,29 @@ export const useUserCamera = () => {
     // ฟังก์ชันสำหรับขออนุญาตและเปิดกล้อง
     const startCamera = async () => {
       try {
-        // ขอ stream จากกล้องหน้า (user)
+        const { isIOS, isSafari } = detectBrowserAndPlatform();
+
+        // ตั้งค่า video constraints ที่เหมาะสมสำหรับแต่ละ platform
+        const videoConstraints = {
+          facingMode: "user", // 'user' คือกล้องหน้า
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        };
+
+        // สำหรับ iOS/Safari ใช้การตั้งค่าเพิ่มเติม
+        if (isIOS || isSafari) {
+          videoConstraints.width = { ideal: 1280, max: 1920 };
+          videoConstraints.height = { ideal: 720, max: 1080 };
+        }
+
+        console.log(
+          `Camera initialization for: iOS=${isIOS}, Safari=${isSafari}`
+        );
+        console.log(`Video constraints:`, videoConstraints);
+
+        // ขอ stream จากกล้อง
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user" }, // 'user' คือกล้องหน้า
+          video: videoConstraints,
           audio: false,
         });
 

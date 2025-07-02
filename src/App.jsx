@@ -6,6 +6,8 @@ import { FLAVORS } from './data/flavors';
 import adaptiveFaceService from './services/adaptiveFaceService';
 import { preloadGLTF } from './utils/preloadGLTF';
 import { preloadVideo } from './utils/preloadVideo';
+import { detectBrowserAndPlatform } from './utils/deviceUtils';
+import { testBrowserDetection, testVideoConstraints, testWebMSupport } from './utils/browserTest';
 
 // React.lazy ยังคงใช้เหมือนเดิม
 const AROverlay = React.lazy(() => import('./components/AROverlay/AROverlay'));
@@ -136,13 +138,30 @@ function App() {
   useEffect(() => {
     async function requestPermissionAndPreload() {
       try {
+        // ทดสอบการตรวจจับ browser และ MIME type
+        testBrowserDetection();
+        testVideoConstraints();
+        testWebMSupport();
+
+        const { isIOS, isSafari } = detectBrowserAndPlatform();
         console.log("📷 Requesting camera and microphone permission...");
+        console.log(`Platform detection: iOS=${isIOS}, Safari=${isSafari}`);
+
+        // ตั้งค่า video constraints ที่เหมาะสมสำหรับแต่ละ platform
+        const videoConstraints = {
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        };
+
+        // สำหรับ iOS/Safari ใช้การตั้งค่าเพิ่มเติม
+        if (isIOS || isSafari) {
+          videoConstraints.width = { ideal: 1280, max: 1920 };
+          videoConstraints.height = { ideal: 720, max: 1080 };
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'user',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
+          video: videoConstraints,
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
