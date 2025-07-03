@@ -9,6 +9,8 @@ import { preloadVideo } from './utils/preloadVideo';
 import { detectBrowserAndPlatform } from './utils/deviceUtils';
 import { testBrowserDetection, testVideoConstraints, testWebMSupport } from './utils/browserTest';
 
+import { Analytics } from "@vercel/analytics/next"
+
 // React.lazy ยังคงใช้เหมือนเดิม
 const AROverlay = React.lazy(() => import('./components/AROverlay/AROverlay'));
 
@@ -226,6 +228,7 @@ function App() {
       <div className="app-container">
         {renderContent()}
       </div>
+      <Analytics mode="production" />
     </div>
   );
 }
